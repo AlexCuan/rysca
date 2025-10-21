@@ -1,6 +1,3 @@
-//
-// Created by Lucia Garcia on 17/9/25.
-//
 
 #include "arp.h"
 #include "../eth/eth.h"
@@ -21,6 +18,21 @@ struct arp_pkt {
     mac_addr_t tha; // Target hardware address
     ipv4_addr_t tpa; // Target protocol address
 };
+
+/* int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac)
+
+ * DESCRIPCIÓN:
+ *   Esta función resuelve una dirección IPv4 a una dirección MAC utilizando ARP.
+ *
+ * PARÁMETROS:
+ *   'iface': Interfaz Ethernet a través de la cual enviar la solicitud ARP.
+ *   'target_ip': Dirección IPv4 a resolver.
+ *   'mac': Buffer donde se almacenará la dirección MAC resuelta.
+ *
+ * VALOR DEVUELTO:
+ *   0 si la dirección MAC se resolvió correctamente, -1 en caso de error, -2
+ *   tiempo de espera agotado.
+ */
 
 int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac) {
     struct arp_pkt request;
@@ -64,5 +76,5 @@ int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac) {
         }
     } while (timerms_left(&timer) > 0);
 
-    return -1;
+    return -2;
 }

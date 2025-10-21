@@ -23,7 +23,7 @@ int main() {
     printf("DEBUG: Parsing destination IP string: '%s'\n", server_ip_str);
     if (ipv4_str_addr(server_ip_str, dest_addr) != 0) {
         printf("Invalid destination IP address\n");
-        // ipv4_close(layer);
+        ipv4_close(layer);
         return 1;
     }
     printf("DEBUG: Destination IP parsed to: %d.%d.%d.%d\n",
@@ -45,6 +45,6 @@ int main() {
         printf("Error sending packet. ipv4_send returned: %d\n", bytes_sent);
     }
 
-    // ipv4_close(layer);
+    ipv4_close(layer);
     return 0;
 }

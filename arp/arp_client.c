@@ -35,13 +35,16 @@ int main(const int argc, char *argv[]) {
         fprintf(stderr, "Failed to open interface: %s\n", interface);
         exit(EXIT_FAILURE);
     }
-
-    if (arp_resolve(iface, target_ip, target_mac) == 1) {
+    int result = arp_resolve(iface, target_ip, target_mac);
+    if (result == 1) {
         char mac_str[MAC_STR_LENGTH];
         mac_addr_str(target_mac, mac_str);
         printf("Resolved MAC address: %s\n", mac_str);
-    } else {
+    } else if (result == -1) {
         fprintf(stderr, "Could not resolve MAC address for %s\n", target_ip_str);
+    }
+    else if (result == -2){
+        fprintf(stderr, "Timeout error\n");
     }
 
     eth_close(iface);
