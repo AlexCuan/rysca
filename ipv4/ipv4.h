@@ -90,6 +90,8 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigne
 
 int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol, unsigned char buffer [], ipv4_addr_t sender, int buf_len, long int timeout);
 
+int ipv4_close(ipv4_layer_t * layer);
+
 ipv4_layer_t* ipv4_open(char * file_conf, char * file_conf_route);
 
 #endif /* _IPv4_H */
