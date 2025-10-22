@@ -48,22 +48,33 @@ int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac) {
     memcpy(request.tha, MAC_BCAST_ADDR, MAC_ADDR_SIZE);
     memcpy(request.tpa, target_ip, IPv4_ADDR_SIZE);
 
-    eth_send(iface, MAC_BCAST_ADDR, 0x0806, (unsigned char *)&request, sizeof(struct arp_pkt));
-
-    long int timeout = 2000; // 2 seconds
-    timerms_t timer;
-    timerms_reset(&timer, timeout);
-
     unsigned char buffer[ETH_MTU];
-
     mac_addr_t dummy_source_mac;
+    timerms_t timer;
+    long int timeouts[] = {2000, 3000};
+    int num_retries = 2;
+    int i;
 
-    do {
-        int len = eth_recv(iface, dummy_source_mac, 0x0806, buffer, sizeof(buffer), timerms_left(&timer));
-        if (len <= 0) {
-            return -1;
-        }
-        if (len > 0) {
+    for (i = 0; i < num_retries; i++) {
+        eth_send(iface, MAC_BCAST_ADDR, 0x0806, (unsigned char *)&request, sizeof(struct arp_pkt));
+        timerms_reset(&timer, timeouts[i]);
+
+        do {
+            long int time_left = timerms_left(&timer);
+            if (time_left <= 0) {
+                break;
+            }
+
+            int len = eth_recv(iface, dummy_source_mac, 0x0806, buffer, sizeof(buffer), time_left);
+
+            if (len < 0) {
+                return -1;
+            }
+
+            if (len == 0) {
+                continue;
+            }
+
             if (len < sizeof(struct arp_pkt)) {
                 continue;
             }
@@ -73,8 +84,8 @@ int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac) {
                 memcpy(mac, arp_reply->sha, MAC_ADDR_SIZE);
                 return 0;
             }
-        }
-    } while (timerms_left(&timer) > 0);
+        } while (1);
+    }
 
     return -2;
 }

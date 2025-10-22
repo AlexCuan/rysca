@@ -23,7 +23,7 @@ int main() {
         return -1;
     }
 
-    printf("Sent %d bytes to %s:%d\n", bytes_sent, "192.100.101.101", UDP_PORT_SERVER);
+    printf("Sent %d bytes in total to %s:%d\n", bytes_sent, "192.100.101.101", UDP_PORT_SERVER);
 
     udp_close(udp_layer);
     return 0;
