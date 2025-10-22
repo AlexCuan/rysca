@@ -6,6 +6,11 @@
 #include <timerms.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <time.h>
+
+#define ARP_CACHE_SIZE 16
+#define ARP_CACHE_TTL_S 120
+
 
 struct arp_pkt {
     uint16_t htype; // Hardware type
@@ -18,6 +23,59 @@ struct arp_pkt {
     mac_addr_t tha; // Target hardware address
     ipv4_addr_t tpa; // Target protocol address
 };
+
+typedef enum {
+    ARP_ENTRY_FREE,
+    ARP_ENTRY_RESOLVED
+} arp_cache_entry_state_t;
+
+typedef struct {
+    arp_cache_entry_state_t state;
+    ipv4_addr_t ip_addr;
+    mac_addr_t mac_addr;
+    time_t timestamp;
+} arp_cache_entry_t;
+
+static arp_cache_entry_t arp_cache[ARP_CACHE_SIZE];
+
+static arp_cache_entry_t* arp_cache_find(ipv4_addr_t ip_addr) {
+    for (int i = 0; i < ARP_CACHE_SIZE; i++) {
+        if (arp_cache[i].state == ARP_ENTRY_RESOLVED &&
+            memcmp(arp_cache[i].ip_addr, ip_addr, IPv4_ADDR_SIZE) == 0) {
+            if (time(NULL) - arp_cache[i].timestamp > ARP_CACHE_TTL_S) {
+                arp_cache[i].state = ARP_ENTRY_FREE;
+                return NULL;
+            }
+            return &arp_cache[i];
+        }
+    }
+    return NULL;
+}
+
+static void arp_cache_add(ipv4_addr_t ip_addr, mac_addr_t mac_addr) {
+    int oldest_index = -1;
+    // Timestamp del momento
+    time_t oldest_time = time(NULL);
+
+    for (int i = 0; i < ARP_CACHE_SIZE; i++) {
+        if (arp_cache[i].state == ARP_ENTRY_FREE) {
+            oldest_index = i;
+            break;
+        }
+        if (arp_cache[i].timestamp < oldest_time) {
+            oldest_time = arp_cache[i].timestamp;
+            oldest_index = i;
+        }
+    }
+
+    if (oldest_index != -1) {
+        arp_cache[oldest_index].state = ARP_ENTRY_RESOLVED;
+        memcpy(arp_cache[oldest_index].ip_addr, ip_addr, IPv4_ADDR_SIZE);
+        memcpy(arp_cache[oldest_index].mac_addr, mac_addr, MAC_ADDR_SIZE);
+        arp_cache[oldest_index].timestamp = time(NULL);
+    }
+}
+
 
 /* int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac)
 
@@ -35,6 +93,12 @@ struct arp_pkt {
  */
 
 int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac) {
+    arp_cache_entry_t* entry = arp_cache_find(target_ip);
+    if (entry != NULL) {
+        memcpy(mac, entry->mac_addr, MAC_ADDR_SIZE);
+        return 0;
+    }
+
     struct arp_pkt request;
     request.hlen = MAC_ADDR_SIZE;
     request.plen = IPv4_ADDR_SIZE;
@@ -82,6 +146,7 @@ int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac) {
             struct arp_pkt *arp_reply = (struct arp_pkt *)buffer;
             if (ntohs(arp_reply->oper) == 2 && (memcmp(arp_reply->spa, target_ip, IPv4_ADDR_SIZE) == 0)) {
                 memcpy(mac, arp_reply->sha, MAC_ADDR_SIZE);
+                arp_cache_add(target_ip, mac);
                 return 0;
             }
         } while (1);
