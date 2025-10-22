@@ -142,10 +142,9 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigne
     return -1;
   }
 
-
   mac_addr_t next_hop_mac;
   ipv4_addr_t next_hop_ip;
-
+  // el destino está en la misma red local y no se necesita un router para llegar a él.
   if (memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) == 0) {
     memcpy(next_hop_ip, dst, IPv4_ADDR_SIZE);
   } else {
@@ -156,12 +155,16 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigne
     return -1;
   }
 
-  int header_len = sizeof(ipv4_header_t);
-  int total_len = header_len + payload_len;
+  const int header_len = sizeof(ipv4_header_t);
+  const int total_len = header_len + payload_len;
   unsigned char* buffer = malloc(total_len);
 
   ipv4_header_t* ip_header = (ipv4_header_t*) buffer;
-//El byte 01000101 (binario) se asigna a ip_header->version_ihl.
+  /* El byte 01000101 (binario) se asigna a ip_header->version_ihl.
+  //Un paquete IPv4 estándar sin opciones tiene una cabecera de 20 bytes.
+  //El valor de IHL indica la longitud de la cabecera en "palabras" de 32 bits
+  //(4 bytes). Por lo tanto, para una cabecera de 20 bytes, el valor de IHL sería
+  5 (porque 5 * 4 bytes = 20 bytes). */
   ip_header->version_ihl = (4 << 4) | 5;
   ip_header->type_of_service = 0;
   ip_header->total_length = htons(total_len);
@@ -217,14 +220,14 @@ ipv4_layer_t * ipv4_open(char * file_conf, char * file_conf_route) {
     return NULL;
   }
 
-  /* 1. Crear layer->routing_table */
+  //Crear routing_table
   layer->routing_table = ipv4_route_table_create();
   if (!layer->routing_table) {
     free(layer);
     return NULL;
   }
 
-  /* 2. Leer direcciones y subred de file_conf */
+  // Leer direcciones y subred de file_conf
   char ifname[IFACE_NAME_MAX_LENGTH];
   if (ipv4_config_read(file_conf, ifname, layer->addr, layer->netmask) != 0) {
     fprintf(stderr, "Error reading IPv4 config file %s\n", file_conf);
@@ -233,7 +236,7 @@ ipv4_layer_t * ipv4_open(char * file_conf, char * file_conf_route) {
     return NULL;
   }
 
-  /* 3. Leer tabla de reenvío IP de file_conf_route */
+  // Leer tabla de reenvío IP de file_conf_route
   if (ipv4_route_table_read(file_conf_route, layer->routing_table) < 0) {
     fprintf(stderr, "Error reading IPv4 route table file %s\n", file_conf_route);
     ipv4_route_table_free(layer->routing_table);
@@ -241,7 +244,7 @@ ipv4_layer_t * ipv4_open(char * file_conf, char * file_conf_route) {
     return NULL;
   }
 
-  /* 4. Inicializar capa Ethernet con eth_open() */
+  // Inicializar capa Ethernet con eth_open()
   layer->iface = eth_open(ifname);
   if (!layer->iface) {
     fprintf(stderr, "Error opening Ethernet interface %s\n", ifname);
@@ -342,10 +345,10 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
             // Packet too small to be a valid IPv4 packet
             continue;
         }
-
+        // TODO: Check this redundant cast
         ipv4_header_t *ip_header = (ipv4_header_t *)eth_buffer;
 
-        // 1. Validate Version and Header Length
+        // Validate Version and Header Length
         if ((ip_header->version_ihl >> 4) != 4) {
             fprintf(stderr, "IPv4 Recv: Incorrect IP version\n");
             continue;
@@ -379,8 +382,8 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
         }
 
         // 5. Get payload
-        int ip_total_len = ntohs(ip_header->total_length);
-        int ip_payload_len = ip_total_len - header_len;
+        const int ip_total_len = ntohs(ip_header->total_length);
+        const int ip_payload_len = ip_total_len - header_len;
 
         if (ip_payload_len <= 0) {
             continue;
@@ -390,7 +393,9 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
         memcpy(sender, ip_header->src_addr, IPv4_ADDR_SIZE);
 
         // 7. Copy payload to user buffer
-        int len_to_copy = (ip_payload_len > buf_len) ? buf_len : ip_payload_len;
+        //Ternario: (condición) ? (valor_si_verdadero) : (valor_si_falso);
+        // Prevent buffer overflow
+        const int len_to_copy = (ip_payload_len > buf_len) ? buf_len : ip_payload_len;
         unsigned char *payload = eth_buffer + header_len;
         memcpy(buffer, payload, len_to_copy);
 
@@ -399,7 +404,7 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
         char sender_str[IPv4_STR_MAX_LENGTH];
         ipv4_addr_str(sender, sender_str);
         printf("%s\n", sender_str);
-        printf("Payload (%d bytes):\n", len_to_copy);
+        printf("IP Payload (%d bytes):\n", len_to_copy);
         print_hex(buffer, len_to_copy);
 
         return len_to_copy;

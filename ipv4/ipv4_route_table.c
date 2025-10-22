@@ -56,11 +56,6 @@ ipv4_route_t * ipv4_route_create
  *   Esta función indica si la dirección IPv4 especificada pertence a la
  *   subred indicada. En ese caso devuelve la longitud de la máscara de la
  *   subred.
- *
- * ************************************************************************
- * * Esta función NO está implementada, debe implementarla usted para que *
- * * funcione correctamente la función 'ipv4_route_table_lookup()'.       *
- * ************************************************************************
  * 
  * PARÁMETROS:
  *   'route': Ruta a la subred que se quiere comprobar.

@@ -122,26 +122,28 @@ uint16_t udp_checksum(udp_header_t* udp_header, unsigned char* payload, int payl
  */
 int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsigned char* payload, int payload_len) {
     udp_header_t header;
+    // Seed the srand generator
     rng_init();
     header.src_port = htons(rng_get_rand_in_range(49152, 65535));
     header.dest_port = htons(dest_port);
     header.length = htons(sizeof(udp_header_t) + payload_len);
     header.checksum = 0;
 
-    int packet_len = sizeof(udp_header_t) + payload_len;
-    unsigned char* packet = (unsigned char*)malloc(packet_len);
+    const int packet_len = sizeof(udp_header_t) + payload_len;
+    unsigned char* packet = malloc(packet_len);
     if (!packet) {
         return -1;
     }
-
+    // First it copies 8 bytes from the header
     memcpy(packet, &header, sizeof(udp_header_t));
+    // Then it copies the payload with an offset of 8 bytes (due to the header)
     memcpy(packet + sizeof(udp_header_t), payload, payload_len);
     
-    udp_header_t* header_in_packet = (udp_header_t*)packet;
-    header_in_packet->checksum = udp_checksum(header_in_packet, payload, payload_len);
+    // udp_header_t* header_in_packet = (udp_header_t*)packet;
+    // header_in_packet->checksum = udp_checksum(header_in_packet, payload, payload_len);
 
 
-    int result = ipv4_send(layer->ipv4_layer, dest_addr, IP_PROTOCOL_UDP, packet, packet_len);
+    const int result = ipv4_send(layer->ipv4_layer, dest_addr, IP_PROTOCOL_UDP, packet, packet_len);
     free(packet);
     return result;
 }
@@ -182,7 +184,24 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
     udp_header_t* header = (udp_header_t*)packet;
     *src_port = ntohs(header->src_port);
 
-    int payload_len = received_len - sizeof(udp_header_t);
+    const int payload_len = received_len - sizeof(udp_header_t);
+    
+    // Check UDP checksum
+    // TODO: Should I use ntohs() here? or leave it as it is because the checksum is already in network byte order.
+    uint16_t received_checksum = ntohs(header->checksum);
+    if (received_checksum != 0) { // If checksum is not zero, it means sender calculated it
+        // Temporarily set checksum to 0 for calculation
+        uint16_t original_checksum_field = header->checksum;
+        header->checksum = 0; 
+        uint16_t calculated_checksum = udp_checksum(header, packet + sizeof(udp_header_t), payload_len);
+        header->checksum = original_checksum_field; // Restore original checksum field
+
+        if (calculated_checksum != received_checksum) {
+            // Checksum mismatch, packet corrupted or invalid
+            return -1; 
+        }
+    }
+
     memcpy(buffer, packet + sizeof(udp_header_t), payload_len);
 
     return payload_len;

@@ -25,7 +25,8 @@ int main() {
     char src_addr_str[IPv4_STR_MAX_LENGTH];
     ipv4_addr_str(src_addr, src_addr_str);
 
-    printf("Received %d bytes from %s:%d\n", bytes_received, src_addr_str, src_port);
+    printf("Received %d bytes (of payload) from %s:%d\n", bytes_received, src_addr_str, src_port);
+    // Imprime exactamente bytes_received caracteres del buffer
     printf("Message: %.*s\n", bytes_received, buffer);
 
     udp_close(udp_layer);
