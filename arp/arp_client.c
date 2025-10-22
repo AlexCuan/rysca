@@ -36,7 +36,7 @@ int main(const int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
     int result = arp_resolve(iface, target_ip, target_mac);
-    if (result == 1) {
+    if (result == 0) {
         char mac_str[MAC_STR_LENGTH];
         mac_addr_str(target_mac, mac_str);
         printf("Resolved MAC address: %s\n", mac_str);
