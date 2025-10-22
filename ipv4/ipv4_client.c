@@ -4,7 +4,7 @@
 
 #define PROTOCOL 123
 
-int main() {
+int main(const int argc, char *argv[]) {
     char *config_file = "../configs/ipv4_config_client.txt";
     char *route_table_file = "../configs/ipv4_route_table_client.txt";
     char *server_ip_str = "192.100.101.101";
