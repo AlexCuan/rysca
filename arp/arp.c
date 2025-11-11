@@ -77,13 +77,14 @@ static void arp_cache_add(ipv4_addr_t ip_addr, mac_addr_t mac_addr) {
 }
 
 
-/* int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac)
+/* int arp_resolve(eth_iface_t * iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, mac_addr_t mac)
 
  * DESCRIPCIÓN:
  *   Esta función resuelve una dirección IPv4 a una dirección MAC utilizando ARP.
  *
  * PARÁMETROS:
  *   'iface': Interfaz Ethernet a través de la cual enviar la solicitud ARP.
+ *   'src_ip': Direccion IPv4 origen
  *   'target_ip': Dirección IPv4 a resolver.
  *   'mac': Buffer donde se almacenará la dirección MAC resuelta.
  *
@@ -92,7 +93,7 @@ static void arp_cache_add(ipv4_addr_t ip_addr, mac_addr_t mac_addr) {
  *   tiempo de espera agotado.
  */
 
-int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac) {
+int arp_resolve(eth_iface_t * iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, mac_addr_t mac) {
     arp_cache_entry_t* entry = arp_cache_find(target_ip);
     if (entry != NULL) {
         memcpy(mac, entry->mac_addr, MAC_ADDR_SIZE);
@@ -106,9 +107,7 @@ int arp_resolve(eth_iface_t * iface, ipv4_addr_t target_ip, mac_addr_t mac) {
     request.ptype = htons(0x0800); // IPv4
     request.oper = htons(1); // ARP request
     eth_getaddr(iface, request.sha);
-    ipv4_addr_t sender_ip;
-    ipv4_str_addr("192.100.100.101", sender_ip);
-    memcpy(request.spa, sender_ip, IPv4_ADDR_SIZE);
+    memcpy(request.spa, src_ip, IPv4_ADDR_SIZE);
     memcpy(request.tha, MAC_BCAST_ADDR, MAC_ADDR_SIZE);
     memcpy(request.tpa, target_ip, IPv4_ADDR_SIZE);
 
