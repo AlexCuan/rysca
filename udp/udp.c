@@ -27,6 +27,7 @@
  *   la inicialización de la capa IPv4.
  */
 udp_layer_t* udp_open(char* config_file, char* route_table) {
+    rng_init();
     udp_layer_t* layer = (udp_layer_t*)malloc(sizeof(udp_layer_t));
     if (!layer) {
         return NULL;
@@ -121,23 +122,22 @@ uint16_t udp_checksum(udp_header_t* udp_header, unsigned char* payload, int payl
  *   o si la función ipv4_send devuelve un error.
  */
 int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsigned char* payload, int payload_len) {
-    udp_header_t header;
     // Seed the srand generator
-    rng_init();
-    header.src_port = htons(rng_get_rand_in_range(49152, 65535));
-    header.dest_port = htons(dest_port);
-    header.length = htons(sizeof(udp_header_t) + payload_len);
-    header.checksum = 0;
 
-    const int packet_len = sizeof(udp_header_t) + payload_len;
-    unsigned char* packet = malloc(packet_len);
-    if (!packet) {
-        return -1;
+    const int header_len = sizeof(udp_header_t);
+    const int packet_len = header_len + payload_len;
+
+    unsigned char* packet = (unsigned char*) malloc(packet_len);
+    if (packet == NULL) {
+        return -1; // Memory allocation failed
     }
-    // First it copies 8 bytes from the header
-    memcpy(packet, &header, sizeof(udp_header_t));
-    // Then it copies the payload with an offset of 8 bytes (due to the header)
-    memcpy(packet + sizeof(udp_header_t), payload, payload_len);
+    udp_header_t* header = (udp_header_t*) packet;
+    header->src_port = htons(rng_get_rand_in_range(49152, 65535));
+    header->dest_port = htons(dest_port);
+    header->length = htons(sizeof(udp_header_t) + payload_len);
+    header->checksum = 0;
+
+    memcpy(packet + header_len, payload, payload_len);
     
     // udp_header_t* header_in_packet = (udp_header_t*)packet;
     // header_in_packet->checksum = udp_checksum(header_in_packet, payload, payload_len);
@@ -174,10 +174,14 @@ int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsi
  *   o si ocurre un error en la capa IPv4.
  */
 int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsigned char* buffer, int buffer_len, long int timeout) {
-    unsigned char packet[buffer_len];
+    unsigned char* packet = malloc(buffer_len);
+    if (!packet) {
+        return -1;
+    }
     int received_len = ipv4_recv(layer->ipv4_layer, IP_PROTOCOL_UDP, packet, src_addr, buffer_len, timeout);
 
     if (received_len < sizeof(udp_header_t)) {
+        free(packet);
         return -1;
     }
 
@@ -198,11 +202,13 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
 
         if (calculated_checksum != received_checksum) {
             // Checksum mismatch, packet corrupted or invalid
+            free(packet);
             return -1; 
         }
     }
 
     memcpy(buffer, packet + sizeof(udp_header_t), payload_len);
 
+    free(packet);
     return payload_len;
 }
