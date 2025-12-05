@@ -257,6 +257,8 @@ int eth_recv
     return -1;
   }
 
+
+
   /* Inicializar temporizador para mantener timeout si se reciben tramas con
      tipo incorrecto. */
   timerms_t timer;
@@ -293,6 +295,14 @@ int eth_recv
     is_my_mac = (memcmp(eth_frame_ptr->dest_addr, 
                         iface->mac_address, MAC_ADDR_SIZE) == 0);
     is_target_type = (ntohs(eth_frame_ptr->type) == type);
+
+    int is_multicast = (eth_frame_ptr->dest_addr[0] & 0x01);
+    int is_broadcast = (memcmp(eth_frame_ptr->dest_addr,
+                        MAC_BCAST_ADDR, MAC_ADDR_SIZE) == 0);
+    // TODO: Check this validation closely
+    if (!is_my_mac && !is_multicast && !is_broadcast) {
+      continue; // Descartar solo si no es para mí, ni multicast, ni broadcast
+    }
 
   } while ( ! (is_my_mac && is_target_type) );
   

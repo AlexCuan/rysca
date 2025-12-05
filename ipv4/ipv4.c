@@ -359,6 +359,8 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
             continue;
         }
 
+
+
         // 2. Validate Checksum
         uint16_t received_checksum = ip_header->header_checksum;
         ip_header->header_checksum = 0;
@@ -379,6 +381,11 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
         // 4. Check protocol
         if (ip_header->protocol != protocol) {
             continue;
+        }
+
+        int is_multicast = ((ip_header->dest_addr[0] & 0xF0) == 0xE0); // 224.0.0.0 a 239.255.255.255
+        if (memcmp(ip_header->dest_addr, layer->addr, IPv4_ADDR_SIZE) != 0 && !is_multicast) {
+          continue; // No es para nosotros
         }
 
         // 5. Get payload
