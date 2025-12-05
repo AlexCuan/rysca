@@ -1,5 +1,5 @@
-# ipv4_config_client.txt
+# ipv4_config_client.txt (Adaptado para H1)
 #
 Interface eth1
-IPv4Address 192.100.100.101
+IPv4Address 10.0.1.10
 SubnetMask 255.255.255.0

@@ -1,6 +1,7 @@
-# ipv4_route_table_client.txt
+# ipv4_route_table_client.txt (Adaptado para H1)
 #
-# SubnetAddr    SubnetMask      Iface    Gateway   
-0.0.0.0         0.0.0.0         eth1     192.100.100.102
-192.100.101.0    255.255.255.0   eth1     192.100.100.102
-192.100.100.0    255.255.255.0   eth1     0.0.0.0
+# SubnetAddr    SubnetMask      Iface    Gateway
+# Red local (directamente conectada)
+10.0.1.0        255.255.255.0   eth1     0.0.0.0
+# Ruta por defecto hacia Router 1 (10.0.1.1)
+0.0.0.0         0.0.0.0         eth1     10.0.1.1
