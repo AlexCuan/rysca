@@ -138,6 +138,14 @@ ripv2_route_t * ripv2_route_table_get ( ripv2_route_table_t * table, int index )
   return NULL;
 }
 
+int ripv2_route_table_size(ripv2_route_table_t *table)
+{
+    if (table == NULL) {
+        return 0;
+    }
+    return IPv4_ROUTE_TABLE_SIZE;
+}
+
 /* ripv2_route_t * ripv2_route_table_lookup ( ... )
  * IMPORTANTE: Para RIP, esta función busca coincidencia EXACTA de subnet y mask.
  * Se usa para saber si una ruta recibida ya existe y actualizarla.
