@@ -5,6 +5,7 @@
 #ifndef TCP_IP_STACK_RIPV2_H
 #define TCP_IP_STACK_RIPV2_H
 
+// TODO: is it necessary stdint?
 #include <stdint.h>
 #include "../ipv4/ipv4.h"
 

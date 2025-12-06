@@ -1,4 +1,5 @@
 #include "ripv2_route_table.h"
+#include "../ipv4/ipv4_route_table.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,7 +46,7 @@ void ripv2_route_free ( ripv2_route_t * route )
 /* void ripv2_route_print ( ripv2_route_t * route )
  * Imprime el estado de la ruta RIP, incluyendo temporizadores.
  */
-void ripv2_route_print ( ripv2_route_t * route )
+void ripv2_route_print ( ripv2_route_t * route)
 {
   if (route != NULL) {
     char subnet_str[IPv4_STR_MAX_LENGTH];
