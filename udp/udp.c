@@ -182,7 +182,10 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
         return -1;
     }
     int received_len = ipv4_recv(layer->ipv4_layer, IP_PROTOCOL_UDP, packet, src_addr, buffer_len, timeout);
-
+    if (received_len < 0) {
+        free(packet);
+        return -1;
+    }
     if (received_len < sizeof(udp_header_t)) {
         free(packet);
         return -1;
