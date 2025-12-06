@@ -27,7 +27,6 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         // 2. Gestión de Temporizadores (Borrar rutas expiradas)
-        time_t now = time(NULL);
         // Recorrer rip_table y eliminar entradas donde (now - last_updated) > RIP_TIMEOUT
         // Si hay cambios, imprimir tabla.
 
@@ -57,6 +56,33 @@ int main(int argc, char *argv[]) {
         }
     }
 }
+
+void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t src_ip, uint16_t src_port) {
+    // Preparamos un mensaje de Response
+    ripv2_msg_t response_msg;
+    response_msg.command = RIP_COMMAND_RESPONSE;
+    response_msg.version = 2;
+    
+    int response_entries = 0;
+    
+    // Recorremos nuestra tabla de rutas
+    for (int i = 0; i < ripv2_route_table_size(table); i++) {
+        ripv2_route_t *route = ripv2_route_table_get(table, i);
+        if (route != NULL) {
+            ripv2_entry_t *entry = &response_msg.entries[response_entries++];
+            entry->family = htons(2); // AF_INET
+            memcpy(&entry->ip, &route->subnet, sizeof(uint32_t));
+            memcpy(&entry->mask, &route->mask, sizeof(uint32_t));
+            memcpy(&entry->next_hop, &route->next_hop, sizeof(uint32_t));
+            entry->metric = htonl(route->metric);
+        }
+    }
+    
+    int response_len = sizeof(ripv2_msg_t) - sizeof(ripv2_entry_t) * (25 - response_entries);
+    udp_send(udp, src_port, src_ip, (unsigned char *)&response_msg, response_len);
+    printf("Enviado Response a %d.%d.%d.%d\n", src_ip[0], src_ip[1], src_ip[2], src_ip[3]);
+}
+
 
 // Implementación básica de procesado de Response
 void process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t src_ip) {
