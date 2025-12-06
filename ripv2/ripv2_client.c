@@ -7,16 +7,31 @@
 
 int main(int argc, char *argv[]) {
     // 1. Argument parsing (simplified)
+    // This configs and routes are the same as upd and ivp4
     char *config = argv[1];
     char *routes = argv[2];
+    // Unicast server ip to ask for routes
     char *server_ip_str = argv[3];
 
     // 2. Open UDP Layer
     udp_layer_t *udp_layer = udp_open(config, routes);
-    if (!udp_layer) { /* Handle Error */ }
 
-    ripv2_msg_t msg;
-    memset(&msg, 0, sizeof(msg));
+    if (!udp_layer) {
+        perror("Failed to open UDP layer");
+        return -1;
+    }
+    ipv4_addr_t dest_ip;
+
+    if(ipv4_str_addr(server_ip_str, dest_ip) != 0)
+    {
+        return -1;
+    };
+
+
+    ripv2_msg_t msg = {0};
+    // TODO: check whether is better the above initialization or the one below
+    // ripv2_msg_t msg;
+    // memset(&msg, 0, sizeof(msg));
 
     msg.command = RIP_COMMAND_REQUEST;
     msg.version = RIP_VERSION;
@@ -26,12 +41,11 @@ int main(int argc, char *argv[]) {
     msg.entries[0].metric = htonl(16); // Important: Network Byte Order
 
     // Size of packet = Header (4 bytes) + 1 Entry (20 bytes)
-    int payload_len = 4 + 20;
+    int payload_len = 24;
 
-    ipv4_addr_t dest_ip;
-    ipv4_str_addr(server_ip_str, dest_ip);
 
     // Send to port 520
+    // TODO: revisar porque el payload se manda asi?
     udp_send(udp_layer, dest_ip, RIP_PORT, (unsigned char *)&msg, payload_len);
     printf("RIPv2 Request sent to %s\n", server_ip_str);
 
@@ -40,6 +54,7 @@ int main(int argc, char *argv[]) {
     unsigned char buffer[1500]; // Buffer for response
 
     // Wait for response
+    // TODO: Revisar timeout
     int len = udp_rcv(udp_layer, &src_port, src_ip, buffer, 1500, 5000);
 
     if (len > 0) {
@@ -54,6 +69,7 @@ int main(int argc, char *argv[]) {
                 ripv2_entry_t *entry = &response->entries[i];
 
                 char ip_str[16], mask_str[16];
+                // TODO: tal vez aqui habria que incluir algun tipo de validacion de las direcciones ip?
                 ipv4_addr_str(entry->ip, ip_str);
                 ipv4_addr_str(entry->mask, mask_str);
                 uint32_t metric = ntohl(entry->metric);
