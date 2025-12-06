@@ -297,14 +297,19 @@ int eth_recv
     is_target_type = (ntohs(eth_frame_ptr->type) == type);
 
     int is_multicast = (eth_frame_ptr->dest_addr[0] & 0x01);
-    int is_broadcast = (memcmp(eth_frame_ptr->dest_addr,
-                        MAC_BCAST_ADDR, MAC_ADDR_SIZE) == 0);
-    // TODO: Check this validation closely
-    if (!is_my_mac && !is_multicast && !is_broadcast) {
-      continue; // Descartar solo si no es para mí, ni multicast, ni broadcast
+    int is_broadcast = (memcmp(eth_frame_ptr->dest_addr, MAC_BCAST_ADDR, MAC_ADDR_SIZE) == 0);
+
+    // Condición de salida: Es mi MAC O es Multicast O es Broadcast, Y el tipo coincide
+    int is_for_me = is_my_mac || is_multicast || is_broadcast;
+
+    if (!is_for_me || !is_target_type) {
+        continue;
     }
 
-  } while ( ! (is_my_mac && is_target_type) );
+    // Si llegamos aquí, tenemos un paquete válido. Salir del bucle.
+    break;
+
+} while (1);
   
   /* Trama recibida con 'tipo' indicado. Copiar datos y dirección MAC origen */
   memcpy(src, eth_frame_ptr->src_addr, MAC_ADDR_SIZE);
