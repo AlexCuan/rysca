@@ -79,7 +79,7 @@ void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *
     }
     
     int response_len = sizeof(ripv2_msg_t) - sizeof(ripv2_entry_t) * (25 - response_entries);
-    udp_send(udp, src_port, src_ip, (unsigned char *)&response_msg, response_len);
+    udp_send(udp, src_ip, src_port, (unsigned char *)&response_msg, response_len);
     printf("Enviado Response a %d.%d.%d.%d\n", src_ip[0], src_ip[1], src_ip[2], src_ip[3]);
 }
 
