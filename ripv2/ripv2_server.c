@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
         uint16_t src_port;
         ipv4_addr_t src_ip;
         unsigned char buffer[1500];
-        memset(buffer, 0, sizeof(buffer)); // <--- AÑADIR ESTO
+        memset(buffer, 0, sizeof(buffer));
         // Timeout de 1000ms para no bloquear eternamente y poder ejecutar manage_timers
         int len = udp_rcv(udp_layer, &src_port, src_ip, buffer, sizeof(buffer), 1000);
 

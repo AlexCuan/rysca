@@ -341,6 +341,7 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
             return -1; // Error
         }
 
+
         if (payload_len < sizeof(ipv4_header_t)) {
             // Packet too small to be a valid IPv4 packet
             continue;
@@ -371,6 +372,11 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
             fprintf(stderr, "IPv4 Recv: Invalid checksum\n");
             continue;
         }
+
+        if (ip_header->protocol != protocol) {
+          // printf("Ignored packet with protocol %d (Expected %d)\n", ip_header->protocol, protocol);
+          continue;
+      }
 
         // 3. Check destination address
         int is_for_me = (memcmp(ip_header->dest_addr, layer->addr, IPv4_ADDR_SIZE) == 0);
@@ -410,11 +416,11 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
 
         // 8. Print payload to screen
         printf("Received IPv4 packet with protocol %d from ", protocol);
-        char sender_str[IPv4_STR_MAX_LENGTH];
-        ipv4_addr_str(sender, sender_str);
-        printf("%s\n", sender_str);
-        printf("IP Payload (%d bytes):\n", len_to_copy);
-        print_hex(buffer, len_to_copy);
+        // char sender_str[IPv4_STR_MAX_LENGTH];
+        // ipv4_addr_str(sender, sender_str);
+        // printf("%s\n", sender_str);
+        // printf("IP Payload (%d bytes):\n", len_to_copy);
+        // print_hex(buffer, len_to_copy);
 
         return len_to_copy;
     }
