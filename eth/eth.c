@@ -274,42 +274,43 @@ int eth_recv
   do {
     long int time_left = timerms_left(&timer);
 
-    /* Recibir trama del interfaz Ethernet y procesar errores */
-    frame_len = rawnet_recv (iface->raw_iface, eth_buffer, eth_buf_len,
-                             time_left);
+    frame_len = rawnet_recv (iface->raw_iface, eth_buffer, eth_buf_len, time_left);
+
     if (frame_len < 0) {
-      fprintf(stderr, "eth_recv(): ERROR en rawnet_recv(): %s\n", 
-              rawnet_strerror());
+      // Error...
       return -1;
     } else if (frame_len == 0) {
-      /* Timeout! */
-      return 0;
-    } else if (frame_len < ETH_HEADER_SIZE) {
-      fprintf(stderr, "eth_recv(): Trama de tamaño invalido: %d bytes\n",
-              frame_len);
-      continue;
+      return 0; // Timeout
     }
 
-    /* Comprobar si es la trama que estamos buscando */
     eth_frame_ptr = (struct eth_frame *) eth_buffer;
-    is_my_mac = (memcmp(eth_frame_ptr->dest_addr, 
-                        iface->mac_address, MAC_ADDR_SIZE) == 0);
+
+    // --- DIAGNÓSTICO: Ver qué está llegando ---
+    // Solo imprimimos si es IP (0x0800) para no saturar con basura
+    if (ntohs(eth_frame_ptr->type) == 0x0800) {
+        printf("[ETH DEBUG] Trama IP recibida. Dest MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+               eth_frame_ptr->dest_addr[0], eth_frame_ptr->dest_addr[1],
+               eth_frame_ptr->dest_addr[2], eth_frame_ptr->dest_addr[3],
+               eth_frame_ptr->dest_addr[4], eth_frame_ptr->dest_addr[5]);
+    }
+
+    // Comprobaciones
+    is_my_mac = (memcmp(eth_frame_ptr->dest_addr, iface->mac_address, MAC_ADDR_SIZE) == 0);
     is_target_type = (ntohs(eth_frame_ptr->type) == type);
 
+    // CORRECCIÓN MULTICAST
     int is_multicast = (eth_frame_ptr->dest_addr[0] & 0x01);
     int is_broadcast = (memcmp(eth_frame_ptr->dest_addr, MAC_BCAST_ADDR, MAC_ADDR_SIZE) == 0);
 
-    // Condición de salida: Es mi MAC O es Multicast O es Broadcast, Y el tipo coincide
-    int is_for_me = is_my_mac || is_multicast || is_broadcast;
-
-    if (!is_for_me || !is_target_type) {
-        continue;
+    // Condición de aceptación: Es para mí, O multicast, O broadcast. Y el tipo coincide.
+    if ((is_my_mac || is_multicast || is_broadcast) && is_target_type) {
+        break; // ACEPTAR PAQUETE
     }
 
-    // Si llegamos aquí, tenemos un paquete válido. Salir del bucle.
-    break;
+    // Si llegamos aquí, lo descartamos y seguimos esperando
+    // printf("[ETH DEBUG] Descartado (No es para mí o tipo incorrecto)\n");
 
-} while (1);
+  } while (1); // Bucle infinito hasta break o timeout
   
   /* Trama recibida con 'tipo' indicado. Copiar datos y dirección MAC origen */
   memcpy(src, eth_frame_ptr->src_addr, MAC_ADDR_SIZE);

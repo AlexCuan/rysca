@@ -47,6 +47,7 @@ int main(int argc, char *argv[]) {
         int len = udp_rcv(udp_layer, &src_port, src_ip, buffer, sizeof(buffer), 1000);
 
     if (len >= 4) { // Mínimo tamaño de cabecera RIP (4 bytes)
+
     ripv2_msg_t *rip_msg = (ripv2_msg_t *)buffer;
 
     // Validar versión
@@ -59,20 +60,19 @@ int main(int argc, char *argv[]) {
         }
     }
     else if (rip_msg->command == RIP_COMMAND_RESPONSE) {
-        // Calcular cuántas entradas caben realmente en el paquete recibido
-        int num_entries = (len - 4) / 20;
+        printf("[DEBUG] Recibido RIP Response de %d.%d.%d.%d\n",
+               src_ip[0], src_ip[1], src_ip[2], src_ip[3]);
 
-        // Modificar process_response para aceptar num_entries o pasar len
-        // Por ahora, simplemente asegúrate de no leer más allá de num_entries
-        // (Necesitarás actualizar la firma de process_response o pasar el límite)
+        // Llamar a la función que procesa la respuesta
+        int changes = process_response(rip_table, rip_msg, src_ip);
 
-        // Solución rápida segura sin cambiar firmas:
-        // Asegúrate de que el bucle en process_response no lea basura si el paquete es corto.
-        // Como process_response itera 25 veces fijo, DEBES inicializar el buffer a 0
-        // antes de llamar a udp_rcv para evitar leer basura en entradas no recibidas.
+        // Requisito del enunciado: "imprimir... el estado final de la misma una vez aplicados todos los cambios"
+        if (changes) {
+            printf(">>> TABLA RIPv2 ACTUALIZADA <<<\n");
+            ripv2_route_table_print(rip_table);
+        }
     }
-}
-    }}
+    }}}
 
 /*
  * Procesa un REQUEST.

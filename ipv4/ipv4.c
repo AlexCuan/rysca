@@ -373,19 +373,21 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
         }
 
         // 3. Check destination address
-        if (memcmp(ip_header->dest_addr, layer->addr, IPv4_ADDR_SIZE) != 0) {
-            // Not for us
-            continue;
-        }
+        int is_for_me = (memcmp(ip_header->dest_addr, layer->addr, IPv4_ADDR_SIZE) == 0);
 
-        // 4. Check protocol
-        if (ip_header->protocol != protocol) {
-            continue;
-        }
+        // CORRECCIÓN MULTICAST: 224.0.0.0/4 (0xE0...)
+        int is_multicast = ((ip_header->dest_addr[0] & 0xF0) == 0xE0);
+        int is_broadcast = (ip_header->dest_addr[3] == 255); // Simplificación broadcast
 
-        int is_multicast = ((ip_header->dest_addr[0] & 0xF0) == 0xE0); // 224.0.0.0 a 239.255.255.255
-        if (memcmp(ip_header->dest_addr, layer->addr, IPv4_ADDR_SIZE) != 0 && !is_multicast) {
-          continue; // No es para nosotros
+        // --- DIAGNÓSTICO ---
+        printf("[IPv4 DEBUG] Paquete recibido para %d.%d.%d.%d (Mio:%d, Multi:%d)\n",
+               ip_header->dest_addr[0], ip_header->dest_addr[1],
+               ip_header->dest_addr[2], ip_header->dest_addr[3],
+               is_for_me, is_multicast);
+
+        if (!is_for_me && !is_multicast && !is_broadcast) {
+             printf("[IPv4 DEBUG] ... Descartado por IP destino incorrecta.\n");
+             continue; // No es para nosotros
         }
 
         // 5. Get payload
