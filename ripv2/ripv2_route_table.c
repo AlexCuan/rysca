@@ -9,11 +9,10 @@
 
 /* Estructura opaca para la tabla de rutas RIPv2 */
 struct ripv2_route_table {
-  ripv2_route_t * routes[IPv4_ROUTE_TABLE_SIZE];
+  ripv2_route_t * routes[ripv2_ROUTE_TABLE_SIZE];
 };
 
-/* ripv2_route_t * ripv2_route_create
- * ( ipv4_addr_t subnet, ipv4_addr_t mask, ipv4_addr_t next_hop, uint32_t metric )
+/* ripv2_route_t * ripv2_route_create * ( ipv4_addr_t subnet, ipv4_addr_t mask, ipv4_addr_t next_hop, uint32_t metric )
  * * DESCRIPCIÓN: 
  * Crea una ruta RIPv2 e inicializa sus temporizadores.
  */
@@ -75,7 +74,7 @@ ripv2_route_table_t * ripv2_route_table_create()
   table = (ripv2_route_table_t *) malloc(sizeof(struct ripv2_route_table));
   if (table != NULL) {
     int i;
-    for (i=0; i<IPv4_ROUTE_TABLE_SIZE; i++) {
+    for (i=0; i<ripv2_ROUTE_TABLE_SIZE; i++) {
       table->routes[i] = NULL;
     }
   }
@@ -88,7 +87,7 @@ void ripv2_route_table_free ( ripv2_route_table_t * table )
 {
   if (table != NULL) {
     int i;
-    for (i=0; i<IPv4_ROUTE_TABLE_SIZE; i++) {
+    for (i=0; i<ripv2_ROUTE_TABLE_SIZE; i++) {
       if (table->routes[i] != NULL) {
         ripv2_route_free(table->routes[i]);
         table->routes[i] = NULL;
@@ -105,7 +104,7 @@ int ripv2_route_table_add ( ripv2_route_table_t * table, ripv2_route_t * route )
 
   if (table != NULL && route != NULL) {
     int i;
-    for (i=0; i<IPv4_ROUTE_TABLE_SIZE; i++) {
+    for (i=0; i<ripv2_ROUTE_TABLE_SIZE; i++) {
       if (table->routes[i] == NULL) {
         table->routes[i] = route;
         route_index = i;
@@ -122,7 +121,7 @@ ripv2_route_t * ripv2_route_table_remove ( ripv2_route_table_t * table, int inde
 {
   ripv2_route_t * removed_route = NULL;
   
-  if ((table != NULL) && (index >= 0) && (index < IPv4_ROUTE_TABLE_SIZE)) {
+  if ((table != NULL) && (index >= 0) && (index < ripv2_ROUTE_TABLE_SIZE)) {
     removed_route = table->routes[index];
     table->routes[index] = NULL;
   }
@@ -133,7 +132,7 @@ ripv2_route_t * ripv2_route_table_remove ( ripv2_route_table_t * table, int inde
 /* ripv2_route_t * ripv2_route_table_get ( ripv2_route_table_t * table, int index ) */
 ripv2_route_t * ripv2_route_table_get ( ripv2_route_table_t * table, int index )
 {
-  if ((table != NULL) && (index >= 0) && (index < IPv4_ROUTE_TABLE_SIZE)) {
+  if ((table != NULL) && (index >= 0) && (index < ripv2_ROUTE_TABLE_SIZE)) {
     return table->routes[index];
   }
   return NULL;
@@ -144,7 +143,7 @@ int ripv2_route_table_size(ripv2_route_table_t *table)
     if (table == NULL) {
         return 0;
     }
-    return IPv4_ROUTE_TABLE_SIZE;
+    return ripv2_ROUTE_TABLE_SIZE;
 }
 
 /* ripv2_route_t * ripv2_route_table_lookup ( ... )
@@ -156,7 +155,7 @@ ripv2_route_t * ripv2_route_table_lookup ( ripv2_route_table_t * table,
 {
   if (table != NULL) {
     int i;
-    for (i=0; i<IPv4_ROUTE_TABLE_SIZE; i++) {
+    for (i=0; i<ripv2_ROUTE_TABLE_SIZE; i++) {
       ripv2_route_t * route = table->routes[i];
       if (route != NULL) {
         // Comparación de memoria exacta para Subred y Máscara
@@ -176,7 +175,7 @@ void ripv2_route_table_print ( ripv2_route_table_t * table )
   if (table != NULL) {
     printf("\n--- RIPv2 Routing Table ---\n");
     int i;
-    for (i=0; i<IPv4_ROUTE_TABLE_SIZE; i++) {
+    for (i=0; i<ripv2_ROUTE_TABLE_SIZE; i++) {
       if (table->routes[i] != NULL) {
         ripv2_route_print(table->routes[i]);
       }
@@ -185,6 +184,8 @@ void ripv2_route_table_print ( ripv2_route_table_t * table )
   }
 }
 
+
+// TODO: Cambiar el formato esperado al de una tabla ripv2 con mas entradas
 /* Helpers para lectura de fichero (simplificado) */
 int ripv2_route_table_read ( char * filename, ripv2_route_table_t * table )
 {

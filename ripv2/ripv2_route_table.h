@@ -21,7 +21,7 @@ void ripv2_route_print ( ripv2_route_t * route );
 
 void ripv2_route_free ( ripv2_route_t * route );
 
-#define ripv2_ROUTE_TABLE_SIZE 256
+#define ripv2_ROUTE_TABLE_SIZE 25
 
 typedef struct ripv2_route_table ripv2_route_table_t;
 
