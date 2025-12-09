@@ -185,7 +185,7 @@ void ripv2_route_table_print ( ripv2_route_table_t * table )
 }
 
 
-// TODO: Cambiar el formato esperado al de una tabla ripv2 con mas entradas
+// TODO: Cambiar el formato esperado al de una tabla ripv2_scenario_2_routers con mas entradas
 /* Helpers para lectura de fichero (simplificado) */
 int ripv2_route_table_read ( char * filename, ripv2_route_table_t * table )
 {

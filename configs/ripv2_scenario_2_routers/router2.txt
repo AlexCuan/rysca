@@ -15,6 +15,7 @@ interface eth0.2
 exit
 
 interface lo
+no ip address 127.0.0.1/8
 ip address 10.0.4.2/32
 exit
 

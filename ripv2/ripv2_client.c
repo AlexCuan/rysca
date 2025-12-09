@@ -58,7 +58,7 @@
 int main(int argc, char *argv[]) {
     // 1. Argument parsing
     if (argc != 4) {
-        printf("Uso: ./ripv2_client <config_file> <routes_file> <server_ip>\n");
+        printf("Ussage: ./ripv2_client <config_file> <routes_file> <server_ip>\n");
         return -1;
     }
     char *config = argv[1];
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
     msg.entries[0].metric = htonl(16); // Network Byte Order
 
     // Size of packet = Header (4 bytes) + 1 Entry (20 bytes)
-    int payload_len = 4 + 20;
+    int payload_len = RIP_HEADER_SIZE + RIP_ENTRY_SIZE;
 
     // Send to port 520
     udp_send(udp_layer, dest_ip, RIP_PORT, (unsigned char *)&msg, payload_len);
@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
                 udp_close(udp_layer); // Buena práctica cerrar antes de salir
                 return 0;
             }
-            int num_entries = (len - 4) / 20; // Header is 4 bytes, Entry is 20
+            int num_entries = (len - RIP_HEADER_SIZE) / RIP_ENTRY_SIZE; // Header is 4 bytes, Entry is 20
 
             printf("Received RIPv2 Response with %d entries:\n", num_entries);
             printf("------------------------------------------\n");
@@ -130,7 +130,6 @@ int main(int argc, char *argv[]) {
                 ipv4_addr_str(entry->next_hop, nexthop_str);
                 uint32_t metric = ntohl(entry->metric);
 
-                // --- INICIO DE LA LÓGICA AGREGADA ---
                 // Variable para guardar el Next Hop "real" para mostrar al usuario
                 char display_nexthop[64];
 
@@ -142,7 +141,6 @@ int main(int argc, char *argv[]) {
                     // Si no es 0.0.0.0, usamos la IP que venía en el paquete
                     snprintf(display_nexthop, sizeof(display_nexthop), "%s", nexthop_str);
                 }
-                // --- FIN DE LA LÓGICA AGREGADA ---
 
                 printf("  Entry %d: Subnet %s/%s | Metric: %u | Next Hop: %s\n",
                        i + 1, ip_str, mask_str, metric, display_nexthop);

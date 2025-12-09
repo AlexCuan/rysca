@@ -13,6 +13,9 @@
 #define RIP_COMMAND_REQUEST 1
 #define RIP_COMMAND_RESPONSE 2
 #define RIP_VERSION 2
+#define RIP_MAX_ENTRIES 25
+#define RIP_HEADER_SIZE 4
+#define RIP_ENTRY_SIZE 20
 
 typedef struct {
     uint16_t family;      // Address Family Identifier
@@ -27,7 +30,7 @@ typedef struct {
     uint8_t command;
     uint8_t version;
     uint16_t zero;
-    ripv2_entry_t entries[25]; // Max 25 entries per packet
+    ripv2_entry_t entries[RIP_MAX_ENTRIES]; // Max 25 entries per packet
 } ripv2_msg_t;
 
 #endif //TCP_IP_STACK_RIPV2_H
