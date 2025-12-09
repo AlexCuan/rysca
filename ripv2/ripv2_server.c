@@ -263,13 +263,12 @@ int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t s
 
         if (route == NULL) {
             // --- RUTA NUEVA ---
-            // Solo aprendemos rutas si son alcanzables (<16)
             if (new_metric < 16) {
+                // Crear y añadir la ruta usando las funciones del TAD
                 ripv2_route_t *new_route = ripv2_route_create(entry->ip, entry->mask, real_next_hop, new_metric);
                 if (ripv2_route_table_add(table, new_route) != -1) {
                     changes = 1;
-                    printf("[RIP] Nueva ruta aprendida: ");
-                    ripv2_route_print(new_route);
+                    printf("Nueva ruta aprendida: "); ripv2_route_print(new_route);
                 } else {
                     free(new_route);
                 }
@@ -279,48 +278,17 @@ int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t s
             int from_same_router = (memcmp(route->next_hop, real_next_hop, 4) == 0);
 
             if (from_same_router) {
-                // A) Viene del mismo router (Next Hop actual)
-                // Debemos aceptar la actualización SIEMPRE, incluso si la métrica empeora.
-
+                // A) Viene del mismo router: Actualizar SIEMPRE (incluso si empeora)
+                // y resetear timer
                 if (route->metric != new_metric) {
                     route->metric = new_metric;
                     changes = 1;
                 }
-
-                /* ==================== CORRECCIÓN DE TIMERS ==================== */
-                if (new_metric >= 16) {
-                    // CASO: El vecino nos dice que la ruta murió (Route Poisoning).
-                    // Acción: Iniciar Garbage Timer inmediatamente.
-
-                    if (!route->is_garbage) {
-                        printf("[RIP] Recibida métrica 16 de next-hop para %d.%d.%d.%d. Iniciando Garbage Timer.\n",
-                               route->subnet[0], route->subnet[1], route->subnet[2], route->subnet[3]);
-
-                        route->is_garbage = 1;            // Entrar en modo borrado
-                        route->last_updated = time(NULL); // Arrancar cuenta atrás de 120s AHORA
-                        changes = 1;                      // Marcar cambio para imprimir tabla
-                    }
-                    // NOTA: Si ya era garbage (is_garbage==1), NO reseteamos el timer.
-                    // Dejamos que corra el tiempo original para que se borre eventualmente.
-                }
-                else {
-                    // CASO: Ruta válida. Refrescamos el timer estándar.
-                    if (route->is_garbage) {
-                        printf("[RIP] Ruta %d.%d.%d.%d recuperada de estado Garbage.\n",
-                               route->subnet[0], route->subnet[1], route->subnet[2], route->subnet[3]);
-                    }
-                    route->last_updated = time(NULL); // Resetear Timeout (180s)
-                    route->is_garbage = 0;            // Asegurar que no está en borrado
-                }
-                /* ============================================================== */
-
+                route->last_updated = time(NULL);
+                route->is_garbage = 0; // Revivir si estaba en garbage
             } else {
-                // B) Viene de otro router: Actualizar SOLO si es estrictamente MEJOR
+                // B) Viene de otro router: Actualizar SOLO si es MEJOR
                 if (new_metric < route->metric) {
-                    printf("[RIP] Ruta mejorada vía nuevo vecino para %d.%d.%d.%d (Métrica %d -> %d)\n",
-                           route->subnet[0], route->subnet[1], route->subnet[2], route->subnet[3],
-                           route->metric, new_metric);
-
                     route->metric = new_metric;
                     memcpy(route->next_hop, real_next_hop, 4);
                     route->last_updated = time(NULL);
