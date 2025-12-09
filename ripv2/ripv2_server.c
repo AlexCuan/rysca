@@ -278,14 +278,34 @@ int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t s
             int from_same_router = (memcmp(route->next_hop, real_next_hop, 4) == 0);
 
             if (from_same_router) {
-                // A) Viene del mismo router: Actualizar SIEMPRE (incluso si empeora)
-                // y resetear timer
+                // Guardamos el estado anterior para saber si hubo transición
+                uint32_t old_metric = route->metric;
+
+                // Actualizar métrica (siempre aceptamos la del next_hop)
                 if (route->metric != new_metric) {
                     route->metric = new_metric;
                     changes = 1;
                 }
-                route->last_updated = time(NULL);
-                route->is_garbage = 0; // Revivir si estaba en garbage
+
+                if (new_metric < 16) {
+                    // CASO A: Ruta sana. Reiniciamos timer siempre (es un "estoy vivo").
+                    route->last_updated = time(NULL);
+                    route->is_garbage = 0;
+                }
+                else {
+                    // CASO B: Ruta infinita (16).
+
+                    // Solo reiniciamos el timer si la ruta NO era infinita antes.
+                    // Es decir, es la PRIMERA vez que nos dicen que murió.
+                    if (old_metric < 16) {
+                        printf("[RIP] Ruta %d.%d.%d.%d ha muerto (Métrica 16). Iniciando cuenta de %ds.\n",
+                               route->subnet[0], route->subnet[1], route->subnet[2], route->subnet[3], RIP_TIMEOUT);
+                        route->last_updated = time(NULL); // Empezamos a contar 0 -> 180
+                        route->is_garbage = 0;
+                    }
+                    // Si old_metric ya era 16 y new_metric es 16, NO hacemos nada con el timer.
+                    // Dejamos que el tiempo siga corriendo para que manage_timers llegue a 180s.
+                }
             } else {
                 // B) Viene de otro router: Actualizar SOLO si es MEJOR
                 if (new_metric < route->metric) {
