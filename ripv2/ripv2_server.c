@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 
 #define RIP_TIMEOUT 180      // 180s para declarar ruta inválida (metric 16)
-#define RIP_GARBAGE_SEC 120  // 120s extra para borrarla definitivamente
+#define RIP_GARBAGE_SEC 240
 
 void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t src_ip, uint16_t src_port);
 int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t src_ip);
@@ -189,7 +189,7 @@ void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *
 
     // Calcular longitud exacta del paquete UDP
     int response_len = 4 + (response_entries * 20); // Header (4) + Entradas
-    udp_send(udp, src_port, src_ip, src_port, (unsigned char *)&response_msg, response_len);
+    udp_send(udp, 520, src_ip, src_port, (unsigned char *)&response_msg, response_len);
 }
 
 /**
