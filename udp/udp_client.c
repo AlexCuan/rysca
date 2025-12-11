@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 
     int message_len = strlen(message);
 
-    int bytes_sent = udp_send(udp_layer, dest_addr, UDP_PORT_SERVER, (unsigned char*)message, message_len);
+    int bytes_sent = udp_send(udp_layer, 0, dest_addr, UDP_PORT_SERVER, (unsigned char*)message, message_len);
     if (bytes_sent < 0) {
         perror("udp_send");
         udp_close(udp_layer);

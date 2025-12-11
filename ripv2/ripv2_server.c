@@ -189,7 +189,7 @@ void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *
 
     // Calcular longitud exacta del paquete UDP
     int response_len = 4 + (response_entries * 20); // Header (4) + Entradas
-    udp_send(udp, src_ip, src_port, (unsigned char *)&response_msg, response_len);
+    udp_send(udp, src_port, src_ip, src_port, (unsigned char *)&response_msg, response_len);
 }
 
 /**

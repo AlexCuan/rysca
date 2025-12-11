@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
     int payload_len = RIP_HEADER_SIZE + RIP_ENTRY_SIZE;
 
     // Send to port 520
-    udp_send(udp_layer, dest_ip, RIP_PORT, (unsigned char *)&msg, payload_len);
+    udp_send(udp_layer, 0, dest_ip, RIP_PORT, (unsigned char *)&msg, payload_len);
     printf("RIPv2 Request sent to %s\n", server_ip_str);
 
     uint16_t src_port;
