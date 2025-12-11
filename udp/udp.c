@@ -116,6 +116,7 @@ uint16_t udp_checksum(udp_header_t* udp_header, unsigned char* payload, int payl
  *   'dest_port': El puerto UDP de destino.
  *   'payload': Puntero a los datos del payload que se enviarán.
  *   'payload_len': Longitud en bytes de los datos del payload.
+ *   'src_port': Puerto de origen. Si es 0, se generará aleatoriamente.
  *
  * VALOR DEVUELTO:
  *   Devuelve el número de bytes enviados si el envío fue exitoso.
@@ -124,7 +125,7 @@ uint16_t udp_checksum(udp_header_t* udp_header, unsigned char* payload, int payl
  *   Devuelve -1 si ocurre un error durante la asignación de memoria para el paquete
  *   o si la función ipv4_send devuelve un error.
  */
-int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsigned char* payload, int payload_len) {
+int udp_send(udp_layer_t* layer, uint16_t src_port, ipv4_addr_t dest_addr, uint16_t dest_port, unsigned char* payload, int payload_len) {
     // Seed the srand generator
 
     const int header_len = sizeof(udp_header_t);
@@ -135,7 +136,11 @@ int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsi
         return -1; // Memory allocation failed
     }
     udp_header_t* header = (udp_header_t*) packet;
-    header->src_port = htons(rng_get_rand_in_range(49152, 65535));
+    if (src_port == 0) {
+        header->src_port = htons(rng_get_rand_in_range(49152, 65535));
+    } else {
+        header->src_port = htons(src_port);
+    }
     header->dest_port = htons(dest_port);
     header->length = htons(sizeof(udp_header_t) + payload_len);
     header->checksum = 0;
