@@ -151,7 +151,7 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigne
     memcpy(next_hop_ip, route->gateway_addr, IPv4_ADDR_SIZE);
   }
 
-  if (arp_resolve(layer->iface, layer->addr, next_hop_ip, next_hop_mac) != 0) {
+  if (arp_resolve(layer->iface, layer->addr, next_hop_ip, NULL, next_hop_mac) != 0) {
     return -1;
   }
 
