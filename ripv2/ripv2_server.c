@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 
 #define RIP_TIMEOUT 180      // 180s para declarar ruta inválida (metric 16)
-#define RIP_GARBAGE_SEC 240
+#define RIP_GARBAGE_SEC 120
 
 void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t src_ip, uint16_t src_port);
 int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t src_ip);
