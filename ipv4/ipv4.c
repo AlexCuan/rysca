@@ -136,7 +136,7 @@ uint16_t ipv4_checksum ( unsigned char * data, int len )
  *   Devuelve -1 si no se encuentra una ruta al destino, si la resolución
  *   ARP falla, o si ocurre un error en la capa Ethernet.
  */
-int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigned char * payload, int payload_len){
+int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigned char * payload, int payload_len, int corrupt){
   ipv4_route_t *route = ipv4_route_table_lookup(layer->routing_table, dst);
   if (!route) {
     return -1;
@@ -144,7 +144,7 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigne
 
   mac_addr_t next_hop_mac;
   ipv4_addr_t next_hop_ip;
-  // el destino está en la misma red local y no se necesita un router para llegar a él.
+
   if (memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) == 0) {
     memcpy(next_hop_ip, dst, IPv4_ADDR_SIZE);
   } else {
@@ -160,11 +160,6 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigne
   unsigned char* buffer = malloc(total_len);
 
   ipv4_header_t* ip_header = (ipv4_header_t*) buffer;
-  /* El byte 01000101 (binario) se asigna a ip_header->version_ihl.
-  //Un paquete IPv4 estándar sin opciones tiene una cabecera de 20 bytes.
-  //El valor de IHL indica la longitud de la cabecera en "palabras" de 32 bits
-  //(4 bytes). Por lo tanto, para una cabecera de 20 bytes, el valor de IHL sería
-  5 (porque 5 * 4 bytes = 20 bytes). */
   ip_header->version_ihl = (4 << 4) | 5;
   ip_header->type_of_service = 0;
   ip_header->total_length = htons(total_len);
@@ -177,6 +172,12 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigne
   memcpy(ip_header->dest_addr, dst, IPv4_ADDR_SIZE);
 
   uint16_t checksum = ipv4_checksum((unsigned char*)ip_header, header_len);
+
+  if (corrupt) {
+    checksum ^= 0xFFFF; // Corrupt the checksum
+    printf("DEBUG: Corrupting IPv4 Checksum\n");
+  }
+
   ip_header->header_checksum = htons(checksum);
 
   memcpy(buffer + header_len, payload, payload_len);

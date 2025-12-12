@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 void print_usage(const char *prog_name) {
-    printf("Usage: %s <ipv4_config_file> <ipv4_route_table_file> <dest_ip> <message>\n", prog_name);
+    printf("Usage: %s <ipv4_config_file> <ipv4_route_table_file> <dest_ip> <message> [-e]\n", prog_name);
     printf("Or: %s -h\n", prog_name);
 }
 
@@ -15,7 +15,13 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    if (argc != 5) {
+    int corrupt = 0;
+
+    // Check for trailing -e
+    if (argc == 6 && strcmp(argv[5], "-e") == 0) {
+        corrupt = 1;
+        // Adjust argc check logic slightly or just use indexes
+    } else if (argc != 5) {
         fprintf(stderr, "Error: Invalid arguments\n");
         print_usage(argv[0]);
         return -1;
@@ -41,7 +47,9 @@ int main(int argc, char *argv[]) {
 
     int message_len = strlen(message);
 
-    int bytes_sent = udp_send(udp_layer, 0, dest_addr, UDP_PORT_SERVER, (unsigned char*)message, message_len);
+    printf("Sending to %s:%d (Corrupt=%d)...\n", dest_ip_str, UDP_PORT_SERVER, corrupt);
+
+    int bytes_sent = udp_send(udp_layer, 0, dest_addr, UDP_PORT_SERVER, (unsigned char*)message, message_len, corrupt);
     if (bytes_sent < 0) {
         perror("udp_send");
         udp_close(udp_layer);
