@@ -2,9 +2,10 @@
 #include "udp.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h> // Required for atoi
 
 void print_usage(const char *prog_name) {
-    printf("Usage: %s <ipv4_config_file> <ipv4_route_table_file>\n", prog_name);
+    printf("Usage: %s <ipv4_config_file> <ipv4_route_table_file> <listening_port>\n", prog_name);
     printf("Or: %s -h\n", prog_name);
 }
 
@@ -14,7 +15,8 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    if (argc != 3) {
+    // Expect 3 arguments now: config, route_table, and port
+    if (argc != 4) {
         fprintf(stderr, "Error: Invalid arguments\n");
         print_usage(argv[0]);
         return -1;
@@ -22,8 +24,9 @@ int main(int argc, char *argv[]) {
 
     char *config_file = argv[1];
     char *route_table_file = argv[2];
+    uint16_t server_port = (uint16_t)atoi(argv[3]); // Parse port from argument
 
-    udp_layer_t* udp_layer = udp_open(config_file, route_table_file);
+    udp_layer_t* udp_layer = udp_open(config_file, route_table_file, server_port);
     if (!udp_layer) {
         perror("udp_open");
         return -1;
@@ -33,7 +36,7 @@ int main(int argc, char *argv[]) {
     ipv4_addr_t src_addr;
     uint16_t src_port;
 
-    printf("UDP server listening\n");
+    printf("UDP server listening on port %d\n", server_port);
 
     while (1) {
         int bytes_received = udp_rcv(udp_layer, &src_port, src_addr, buffer, 1500, -1);
@@ -46,7 +49,6 @@ int main(int argc, char *argv[]) {
         ipv4_addr_str(src_addr, src_addr_str);
 
         printf("Received %d bytes (of UDP payload) from %s:%d\n", bytes_received, src_addr_str, src_port);
-        // Imprime exactamente bytes_received caracteres del buffer
         printf("Message: %.*s\n", bytes_received, buffer);
     }
 

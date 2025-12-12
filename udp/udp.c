@@ -29,7 +29,7 @@
  *   Devuelve NULL si ocurre un error durante la asignación de memoria o
  *   la inicialización de la capa IPv4.
  */
-udp_layer_t* udp_open(char* config_file, char* route_table) {
+udp_layer_t* udp_open(char* config_file, char* route_table, uint16_t port) {
     rng_init();
     udp_layer_t* layer = (udp_layer_t*)malloc(sizeof(udp_layer_t));
     if (!layer) {
@@ -41,6 +41,15 @@ udp_layer_t* udp_open(char* config_file, char* route_table) {
         free(layer);
         return NULL;
     }
+
+    if (port == 0) {
+        // Generar puerto aleatorio (Rango efímero IANA)
+        layer->local_port = (uint16_t)rng_get_rand_in_range(49152, 65535);
+    } else {
+        layer->local_port = port;
+    }
+
+    printf("DEBUG: UDP Layer opened on port %d\n", layer->local_port);
 
     return layer;
 }
@@ -138,7 +147,7 @@ uint16_t udp_checksum(ipv4_addr_t src, ipv4_addr_t dest, udp_header_t* udp_heade
  *   Devuelve -1 si ocurre un error durante la asignación de memoria para el paquete
  *   o si la función ipv4_send devuelve un error.
  */
-int udp_send(udp_layer_t* layer, uint16_t src_port, ipv4_addr_t dest_addr, uint16_t dest_port, unsigned char* payload, int payload_len, int corrupt) {
+int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsigned char* payload, int payload_len, int corrupt) {
     const int header_len = sizeof(udp_header_t);
     const int packet_len = header_len + payload_len;
 
@@ -147,34 +156,28 @@ int udp_send(udp_layer_t* layer, uint16_t src_port, ipv4_addr_t dest_addr, uint1
         return -1;
     }
     udp_header_t* header = (udp_header_t*) packet;
-    if (src_port == 0) {
-        header->src_port = htons(rng_get_rand_in_range(49152, 65535));
-    } else {
-        header->src_port = htons(src_port);
-    }
+
+    // USAR PUERTO LOCAL ALMACENADO
+    header->src_port = htons(layer->local_port);
     header->dest_port = htons(dest_port);
     header->length = htons(sizeof(udp_header_t) + payload_len);
     header->checksum = 0;
 
     memcpy(packet + header_len, payload, payload_len);
 
-    // Calculate Checksum with Pseudo Header
     ipv4_addr_t src_addr;
     memcpy(src_addr, layer->ipv4_layer->addr, IPv4_ADDR_SIZE);
 
     uint16_t chk = udp_checksum(src_addr, dest_addr, header, payload, payload_len);
-    if (chk == 0) chk = 0xFFFF; // RFC 768
+    if (chk == 0) chk = 0xFFFF;
 
     if (corrupt) {
-        chk ^= 0xFFFF; // Intentionally corrupt checksum
+        chk ^= 0xFFFF;
         printf("DEBUG: Corrupting UDP Checksum\n");
     }
 
     header->checksum = htons(chk);
 
-    // Pass 0 to ipv4_send corrupt flag, since we are handling UDP corruption here.
-    // (Or we could pass it down if we wanted to test IP checksum corruption too,
-    // but usually -e targets the specific protocol layer).
     const int result = ipv4_send(layer->ipv4_layer, dest_addr, IP_PROTOCOL_UDP, packet, packet_len, 0);
     free(packet);
     return result;
@@ -206,46 +209,57 @@ int udp_send(udp_layer_t* layer, uint16_t src_port, ipv4_addr_t dest_addr, uint1
  *   o si ocurre un error en la capa IPv4.
  */
 int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsigned char* buffer, int buffer_len, long int timeout) {
+
     unsigned char* packet = malloc(buffer_len);
-    if (!packet) {
-        return -1;
-    }
-    int received_len = ipv4_recv(layer->ipv4_layer, IP_PROTOCOL_UDP, packet, src_addr, buffer_len, timeout);
-    if (received_len < 0) {
-        free(packet);
-        return -1;
-    }
-    if (received_len < sizeof(udp_header_t)) {
-        free(packet);
-        return -1;
-    }
+    if (!packet) return -1;
 
-    udp_header_t* header = (udp_header_t*)packet;
-    *src_port = ntohs(header->src_port);
+    // Bucle para descartar paquetes que no son para nuestro puerto
+    while (1) {
+        int received_len = ipv4_recv(layer->ipv4_layer, IP_PROTOCOL_UDP, packet, src_addr, buffer_len, timeout);
 
-    const int payload_len = received_len - sizeof(udp_header_t);
-    
-    // Verify Checksum
-    uint16_t received_checksum = ntohs(header->checksum);
-    if (received_checksum != 0) {
-        ipv4_addr_t my_ip;
-        memcpy(my_ip, layer->ipv4_layer->addr, IPv4_ADDR_SIZE);
-
-        header->checksum = 0;
-        uint16_t calculated_checksum = udp_checksum(src_addr, my_ip, header, packet + sizeof(udp_header_t), payload_len);
-        if (calculated_checksum == 0) calculated_checksum = 0xFFFF;
-
-        header->checksum = htons(received_checksum); // Restore
-
-        if (calculated_checksum != received_checksum) {
-            printf("Error: UDP Checksum mismatch. Recv: 0x%04x, Calc: 0x%04x\n", received_checksum, calculated_checksum);
+        if (received_len < 0) {
             free(packet);
-            return -1; // Drop packet
+            return -1;
         }
+        if (received_len < sizeof(udp_header_t)) {
+            // Packet too short
+            continue;
+        }
+
+        udp_header_t* header = (udp_header_t*)packet;
+        uint16_t dest_port_pkt = ntohs(header->dest_port);
+
+        // FILTRADO DE PUERTO
+        if (dest_port_pkt != layer->local_port) {
+            // printf("DEBUG: Ignored UDP packet for port %d (listening on %d)\n", dest_port_pkt, layer->local_port);
+            continue;
+        }
+
+        // Si llegamos aquí, el paquete es para nosotros
+        *src_port = ntohs(header->src_port);
+        const int payload_len = received_len - sizeof(udp_header_t);
+
+        // Verify Checksum
+        uint16_t received_checksum = ntohs(header->checksum);
+        if (received_checksum != 0) {
+            ipv4_addr_t my_ip;
+            memcpy(my_ip, layer->ipv4_layer->addr, IPv4_ADDR_SIZE);
+
+            header->checksum = 0;
+            uint16_t calculated_checksum = udp_checksum(src_addr, my_ip, header, packet + sizeof(udp_header_t), payload_len);
+            if (calculated_checksum == 0) calculated_checksum = 0xFFFF;
+
+            header->checksum = htons(received_checksum);
+
+            if (calculated_checksum != received_checksum) {
+                printf("Error: UDP Checksum mismatch. Recv: 0x%04x, Calc: 0x%04x\n", received_checksum, calculated_checksum);
+                // Drop packet and continue waiting
+                continue;
+            }
+        }
+
+        memcpy(buffer, packet + sizeof(udp_header_t), payload_len);
+        free(packet);
+        return payload_len;
     }
-
-    memcpy(buffer, packet + sizeof(udp_header_t), payload_len);
-
-    free(packet);
-    return payload_len;
 }
