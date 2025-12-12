@@ -299,9 +299,9 @@ int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t s
                     // Es decir, es la PRIMERA vez que nos dicen que murió.
                     if (old_metric < 16) {
                         printf("[RIP] Ruta %d.%d.%d.%d ha muerto (Métrica 16). Iniciando cuenta de %ds.\n",
-                               route->subnet[0], route->subnet[1], route->subnet[2], route->subnet[3], RIP_TIMEOUT);
+                               route->subnet[0], route->subnet[1], route->subnet[2], route->subnet[3], RIP_GARBAGE_SEC);
                         route->last_updated = time(NULL); // Empezamos a contar 0 -> 180
-                        route->is_garbage = 0;
+                        route->is_garbage = 1;
                     }
                     // Si old_metric ya era 16 y new_metric es 16, NO hacemos nada con el timer.
                     // Dejamos que el tiempo siga corriendo para que manage_timers llegue a 180s.
