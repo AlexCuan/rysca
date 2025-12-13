@@ -1,6 +1,9 @@
+/* gemini_temp/ripv2/ripv2_server.c */
+
 #include "ripv2.h"
 #include "ripv2_route_table.h"
 #include "../udp/udp.h"
+#include "../utils/rng.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,12 +13,21 @@
 #define RIP_TIMEOUT 180
 #define RIP_GARBAGE_SEC 120
 
-// PROTOTIPOS ACTUALIZADOS
-// Se añade el parámetro 'len' para saber cuántas entradas llegan en el Request
+// Configuración RIP
+#define RIP_UPDATE_INTERVAL 30
+#define RIP_JITTER_MAX 5
+#define RIP_MCAST_ADDR "224.0.0.9"
+
+// Variables globales para el temporizador
+time_t last_update_time = 0;
+int current_interval = RIP_UPDATE_INTERVAL;
+
+// PROTOTIPOS
 void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *msg, int len, ipv4_addr_t src_ip, uint16_t src_port);
 int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t src_ip);
-void manage_timers(ripv2_route_table_t *table);
-void send_initial_request(udp_layer_t *udp_layer); // Nuevo prototipo
+int manage_timers(ripv2_route_table_t *table); // Ahora devuelve int
+void send_updates(udp_layer_t *udp, ripv2_route_table_t *table, int is_triggered); // Unificada
+void send_initial_request(udp_layer_t *udp);
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
@@ -23,65 +35,206 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    rng_init();
+
     udp_layer_t *udp_layer = udp_open(argv[1], argv[2], RIP_PORT);
     if (udp_layer == NULL) {
-        fprintf(stderr, "ERROR: No se pudo abrir la capa UDP. Revisa ficheros de configuración.\n");
+        fprintf(stderr, "ERROR: No se pudo abrir la capa UDP.\n");
         return -1;
     }
 
     ripv2_route_table_t *rip_table = ripv2_route_table_create();
     printf("Servidor RIPv2 arrancado. Escuchando puerto %d...\n", RIP_PORT);
+
+    // 1. Initial Request (Pedir tabla al arrancar)
     send_initial_request(udp_layer);
 
+    // Inicializar timer
+    last_update_time = time(NULL);
+    current_interval = RIP_UPDATE_INTERVAL + rng_get_rand_in_range(-RIP_JITTER_MAX, RIP_JITTER_MAX);
+
     while (1) {
-        printf("\n--- Estado actual de la tabla RIPv2 ---\n");
-        ripv2_route_table_print(rip_table);
-        printf("-----------------------------------------------------------\n");
+        int triggered = 0;
 
-        manage_timers(rip_table);
+        // 2. Garbage Collection y Timers
+        // Si una ruta expira, manage_timers devuelve 1 -> Trigger Update
+        if (manage_timers(rip_table)) {
+            triggered = 1;
+        }
 
+        // 3. Recepción de mensajes (Timeout corto de 500ms)
         uint16_t src_port;
         ipv4_addr_t src_ip;
         unsigned char buffer[1500];
-        memset(buffer, 0, sizeof(buffer));
 
-        int len = udp_rcv(udp_layer, &src_port, src_ip, buffer, sizeof(buffer), 1000);
+        int len = udp_rcv(udp_layer, &src_port, src_ip, buffer, sizeof(buffer), 500);
 
         if (len >= 4) {
             ripv2_msg_t *rip_msg = (ripv2_msg_t *)buffer;
-            if (rip_msg->version != 2) continue;
-
-            if (rip_msg->command == RIP_COMMAND_REQUEST) {
-                if (len >= 24) {
-                    // ACTUALIZADO: Pasamos 'len' a process_request
-                    process_request(udp_layer, rip_table, rip_msg, len, src_ip, src_port);
+            if (rip_msg->version == 2) {
+                if (rip_msg->command == RIP_COMMAND_REQUEST) {
+                    if (len >= 24) {
+                        process_request(udp_layer, rip_table, rip_msg, len, src_ip, src_port);
+                    }
+                }
+                else if (rip_msg->command == RIP_COMMAND_RESPONSE) {
+                    // Si process_response devuelve 1 (cambios aprendidos) -> Trigger Update
+                    int changes = process_response(rip_table, rip_msg, src_ip);
+                    if (changes) {
+                        printf(">>> TABLA RIPv2 ACTUALIZADA (Nuevas rutas) <<<\n");
+                        ripv2_route_table_print(rip_table);
+                        triggered = 1;
+                    }
                 }
             }
-            else if (rip_msg->command == RIP_COMMAND_RESPONSE) {
-                printf("[DEBUG] Recibido RIP Response de %d.%d.%d.%d\n",
-                       src_ip[0], src_ip[1], src_ip[2], src_ip[3]);
+        }
 
-                int changes = process_response(rip_table, rip_msg, src_ip);
-                if (changes) {
-                    printf(">>> TABLA RIPv2 ACTUALIZADA TRAS RESPONSE <<<\n");
-                    ripv2_route_table_print(rip_table);
-                }
-            }
+        // 4. Gestión de actualizaciones (Triggered o Periódica)
+        if (triggered) {
+            // TRIGGERED UPDATE: Se envía inmediatamente por cambios
+            send_updates(udp_layer, rip_table, 1);
+        } else {
+            // PERIODIC UPDATE: Se envía solo si expiró el timer
+            send_updates(udp_layer, rip_table, 0);
         }
     }
 }
 
 /**
- * process_request: Maneja tanto Whole Table Requests como peticiones específicas.
+ * send_updates:
+ * Maneja tanto actualizaciones periódicas como triggered.
+ * - is_triggered = 0: Verifica el temporizador.
+ * - is_triggered = 1: Envía inmediatamente y resetea el temporizador.
  */
-void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *msg, int len, ipv4_addr_t src_ip, uint16_t src_port) {
+void send_updates(udp_layer_t *udp, ripv2_route_table_t *table, int is_triggered) {
+    time_t now = time(NULL);
 
-    // Calcular número de entradas en el mensaje recibido
-    // len total = header (4) + N * entry (20)
+    if (!is_triggered) {
+        // Modo Periódico: Verificar si toca enviar
+        if ((now - last_update_time) < current_interval) {
+            return;
+        }
+    } else {
+        printf("[RIPv2] TRIGGERED UPDATE! Propagando cambios inmediatamente...\n");
+    }
+
+    // Resetear timer (tanto para periodic como triggered full table)
+    // Esto evita enviar un periódico justo después de un triggered.
+    last_update_time = now;
+    int jitter = rng_get_rand_in_range(-RIP_JITTER_MAX, RIP_JITTER_MAX);
+    current_interval = RIP_UPDATE_INTERVAL + jitter;
+
+    if (!is_triggered) {
+        printf("[RIPv2] Periodic Update (Next in %ds)...\n", current_interval);
+    }
+
+    // --- Construcción del Mensaje (Split Horizon + Poison Reverse) ---
+    ripv2_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.command = RIP_COMMAND_RESPONSE;
+    msg.version = RIP_VERSION;
+
+    int entry_count = 0;
+    int table_size = ripv2_route_table_size(table);
+
+    ipv4_addr_t dest_ip;
+    ipv4_str_addr(RIP_MCAST_ADDR, dest_ip);
+    ipv4_addr_t zero_addr = {0,0,0,0};
+
+    for (int i = 0; i < table_size; i++) {
+        ripv2_route_t *route = ripv2_route_table_get(table, i);
+        if (route == NULL) continue;
+
+        // Lógica Poison Reverse
+        uint32_t metric_to_send = route->metric;
+        if (memcmp(route->next_hop, zero_addr, 4) != 0) {
+            // Si la ruta no es local (NextHop != 0.0.0.0), la envenenamos hacia la interfaz
+            metric_to_send = 16;
+        }
+
+        ripv2_entry_t *entry = &msg.entries[entry_count++];
+        entry->family = htons(2);
+        entry->tag = htons(route->route_tag);
+        memcpy(entry->ip, route->subnet, 4);
+        memcpy(entry->mask, route->mask, 4);
+        memset(entry->next_hop, 0, 4);
+        entry->metric = htonl(metric_to_send);
+
+        if (entry_count == RIP_MAX_ENTRIES) {
+             int len = RIP_HEADER_SIZE + (entry_count * RIP_ENTRY_SIZE);
+             udp_send(udp, dest_ip, RIP_PORT, (unsigned char *)&msg, len, 0);
+             entry_count = 0;
+             memset(msg.entries, 0, sizeof(msg.entries));
+        }
+    }
+
+    if (entry_count > 0) {
+        int len = RIP_HEADER_SIZE + (entry_count * RIP_ENTRY_SIZE);
+        udp_send(udp, dest_ip, RIP_PORT, (unsigned char *)&msg, len, 0);
+    }
+}
+
+/**
+ * manage_timers:
+ * Devuelve 1 si hubo cambios (ruta expirada o borrada), 0 si no.
+ */
+int manage_timers(ripv2_route_table_t *table) {
+    int size = ripv2_route_table_size(table);
+    time_t now = time(NULL);
+    int changes = 0;
+
+    for (int i = 0; i < size; i++) {
+        ripv2_route_t *route = ripv2_route_table_get(table, i);
+        if (route == NULL) continue;
+        double age = difftime(now, route->last_updated);
+
+        if (!route->is_garbage && age > RIP_TIMEOUT) {
+            printf("[TIMER] Ruta %d.%d.%d.%d expirada (>180s). Marcando Garbage.\n",
+                   route->subnet[0], route->subnet[1], route->subnet[2], route->subnet[3]);
+            route->metric = 16; // Infinito
+            route->is_garbage = 1;
+            route->last_updated = now; // Reiniciar timer para garbage collection
+            changes = 1;
+        }
+        else if (route->is_garbage && age > RIP_GARBAGE_SEC) {
+            printf("[TIMER] Ruta %d.%d.%d.%d eliminada definitivamente (>120s Garbage).\n",
+                   route->subnet[0], route->subnet[1], route->subnet[2], route->subnet[3]);
+            ripv2_route_t *removed = ripv2_route_table_remove(table, i);
+            if (removed) {
+                ripv2_route_free(removed);
+                changes = 1;
+            }
+        }
+    }
+
+    if (changes) {
+        printf("[INFO] Tabla modificada por timers. Disparando Update...\n");
+        ripv2_route_table_print(table);
+    }
+    return changes;
+}
+
+// --- Funciones auxiliares sin cambios significativos ---
+
+void send_initial_request(udp_layer_t *udp) {
+    ripv2_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.command = RIP_COMMAND_REQUEST;
+    msg.version = RIP_VERSION;
+    msg.entries[0].family = 0;
+    msg.entries[0].metric = htonl(16);
+
+    ipv4_addr_t mcast_addr;
+    ipv4_str_addr(RIP_MCAST_ADDR, mcast_addr);
+
+    printf("[RIPv2] Enviando Initial Request...\n");
+    udp_send(udp, mcast_addr, RIP_PORT, (unsigned char *)&msg, RIP_HEADER_SIZE + RIP_ENTRY_SIZE, 0);
+}
+
+void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *msg, int len, ipv4_addr_t src_ip, uint16_t src_port) {
     int num_entries_req = (len - RIP_HEADER_SIZE) / RIP_ENTRY_SIZE;
     if (num_entries_req <= 0) return;
 
-    // Verificar si es "Whole Table Request" (Familia 0, Métrica 16)
     int request_all = 0;
     if (num_entries_req == 1 && ntohs(msg->entries[0].family) == 0 && ntohl(msg->entries[0].metric) == 16) {
         request_all = 1;
@@ -94,66 +247,44 @@ void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *
     int response_entries_count = 0;
 
     if (request_all) {
-        // --- CASO 1: Solicitud de Tabla Completa ---
-        printf("Recibido Request de TODA la tabla desde %d.%d.%d.%d\n",
-               src_ip[0], src_ip[1], src_ip[2], src_ip[3]);
-
+        printf("[REQ] Solicitud de tabla completa recibida de %d.%d.%d.%d\n", src_ip[0], src_ip[1], src_ip[2], src_ip[3]);
         int table_size = ripv2_route_table_size(table);
         for (int i = 0; i < table_size; i++) {
             ripv2_route_t *route = ripv2_route_table_get(table, i);
             if (route != NULL) {
                 if (response_entries_count >= 25) break;
-
                 ripv2_entry_t *entry = &response_msg.entries[response_entries_count++];
                 entry->family = htons(2);
                 entry->tag = htons(route->route_tag);
                 memcpy(entry->ip, route->subnet, 4);
                 memcpy(entry->mask, route->mask, 4);
-                memset(entry->next_hop, 0, 4); // NextHop 0.0.0.0 (nosotros)
+                memset(entry->next_hop, 0, 4);
                 entry->metric = htonl(route->metric);
             }
         }
-
     } else {
-        // --- CASO 2: Solicitud de Rutas Específicas (Partial Update) ---
-        printf("Recibido Request PARCIAL (%d entradas) desde %d.%d.%d.%d\n",
-               num_entries_req, src_ip[0], src_ip[1], src_ip[2], src_ip[3]);
-
-        // Iterar sobre las entradas que nos piden (máximo 25)
+        // Solicitud específica (no cambia lógica)
         for (int i = 0; i < num_entries_req && i < 25; i++) {
             ripv2_entry_t *req_entry = &msg->entries[i];
             ripv2_entry_t *resp_entry = &response_msg.entries[response_entries_count++];
-
-            // Copiamos la info básica de la petición a la respuesta
-            resp_entry->family = htons(2); // Siempre AF_INET
+            resp_entry->family = htons(2);
             resp_entry->tag = req_entry->tag;
             memcpy(resp_entry->ip, req_entry->ip, 4);
             memcpy(resp_entry->mask, req_entry->mask, 4);
             memset(resp_entry->next_hop, 0, 4);
 
-            // Buscamos la ruta en nuestra tabla
-            // NOTA: Se requiere coincidencia exacta de Subnet y Máscara
             ripv2_route_t *route = ripv2_route_table_lookup(table, req_entry->ip, req_entry->mask);
-
-            if (route != NULL) {
-                // Ruta encontrada: devolvemos nuestra métrica
-                resp_entry->metric = htonl(route->metric);
-            } else {
-                // Ruta NO encontrada: devolvemos infinito (16)
-                resp_entry->metric = htonl(16);
-            }
+            if (route != NULL) resp_entry->metric = htonl(route->metric);
+            else resp_entry->metric = htonl(16);
         }
     }
 
-    // Enviar respuesta si generamos alguna entrada
     if (response_entries_count > 0) {
         int response_len = RIP_HEADER_SIZE + (response_entries_count * RIP_ENTRY_SIZE);
         udp_send(udp, src_ip, src_port, (unsigned char *)&response_msg, response_len, 0);
-        printf("Enviado Response con %d entradas.\n", response_entries_count);
     }
 }
 
-// ... (El resto del archivo: process_response y manage_timers se mantienen igual) ...
 int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t src_ip) {
     int changes = 0;
     for (int i = 0; i < 25; i++) {
@@ -187,20 +318,20 @@ int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t s
         } else {
             int from_same_router = (memcmp(route->next_hop, real_next_hop, 4) == 0);
             if (from_same_router) {
-                uint32_t old_metric = route->metric;
                 if (route->metric != new_metric) {
                     route->metric = new_metric;
-                    changes = 1;
+                    changes = 1; // Cambio de métrica -> Triggered Update
                 }
+                // Si la métrica sigue siendo infinita, actualizamos timer pero no es "cambio" para propagar
+                // Si pasa de finita a infinita, SÍ es cambio.
+
+                route->last_updated = time(NULL);
                 if (new_metric < 16) {
-                    route->last_updated = time(NULL);
                     route->is_garbage = 0;
                 } else {
-                    if (old_metric < 16) {
-                        printf("[RIP] Ruta %d.%d.%d.%d ha muerto (Métrica 16).\n",
-                               route->subnet[0], route->subnet[1], route->subnet[2], route->subnet[3]);
-                        route->last_updated = time(NULL);
+                    if (!route->is_garbage) {
                         route->is_garbage = 1;
+                        changes = 1; // Ruta marcada como inalcanzable -> Triggered Update
                     }
                 }
             } else {
@@ -209,71 +340,10 @@ int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t s
                     memcpy(route->next_hop, real_next_hop, 4);
                     route->last_updated = time(NULL);
                     route->is_garbage = 0;
-                    changes = 1;
+                    changes = 1; // Mejor camino encontrado -> Triggered Update
                 }
             }
         }
     }
     return changes;
-}
-
-void manage_timers(ripv2_route_table_t *table) {
-    int size = ripv2_route_table_size(table);
-    time_t now = time(NULL);
-    int changes = 0;
-
-    for (int i = 0; i < size; i++) {
-        ripv2_route_t *route = ripv2_route_table_get(table, i);
-        if (route == NULL) continue;
-        double age = difftime(now, route->last_updated);
-
-        if (!route->is_garbage && age > RIP_TIMEOUT) {
-            printf("[TIMER] Ruta expirada (Timeout > 180s). Métrica puesta a 16.\n");
-            route->metric = 16;
-            route->is_garbage = 1;
-            route->last_updated = now;
-            changes = 1;
-        }
-        else if (route->is_garbage && age > RIP_GARBAGE_SEC) {
-            printf("[TIMER] Ruta eliminada definitivamente (Garbage Collection).\n");
-            ripv2_route_t *removed = ripv2_route_table_remove(table, i);
-            if (removed) {
-                ripv2_route_free(removed);
-                changes = 1;
-            }
-        }
-    }
-
-    if (changes) {
-        printf("[INFO] Tabla actualizada por expiración de timers:\n");
-        ripv2_route_table_print(table);
-    }
-}
-
-/**
- * NUEVA FUNCIÓN: Envía un RIP Request solicitando la tabla completa.
- * Destino: 224.0.0.9 (Multicast)
- * Contenido: Una entrada con Family=0 y Metric=16 (infinito)
- */
-void send_initial_request(udp_layer_t *udp_layer) {
-    ripv2_msg_t msg;
-    memset(&msg, 0, sizeof(msg));
-
-    msg.command = RIP_COMMAND_REQUEST;
-    msg.version = RIP_VERSION;
-
-    // Entrada especial para solicitar tabla completa (RFC 2453, sec 3.9.1)
-    msg.entries[0].family = 0; // Family 0
-    msg.entries[0].metric = htonl(16); // Metric infinity
-
-    int payload_len = RIP_HEADER_SIZE + RIP_ENTRY_SIZE;
-
-    ipv4_addr_t mcast_addr;
-    if (ipv4_str_addr(RIP_MCAST_ADDR, mcast_addr) == 0) {
-        printf("[RIPv2] Enviando Petición Inicial de Tabla a %s...\n", RIP_MCAST_ADDR);
-        // Enviamos al puerto RIP (520)
-        udp_send(udp_layer, mcast_addr, RIP_PORT, (unsigned char *)&msg, payload_len, 0);
-    } else {
-        fprintf(stderr, "[RIPv2] Error parseando dirección multicast.\n");
-    }
 }
