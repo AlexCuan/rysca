@@ -18,8 +18,7 @@ int main(const int argc, char *argv[]) {
     char sender_str[IPv4_STR_MAX_LENGTH];
 
     printf("Waiting for a packet...\n");
-    int len = ipv4_recv(layer, PROTOCOL, buffer, sender, sizeof(buffer), -1);
-
+    int len = ipv4_recv(layer, PROTOCOL, buffer, sender, NULL, sizeof(buffer), -1);
     if (len > 0) {
         ipv4_addr_str(sender, sender_str);
         printf("Packet received from %s\n", sender_str);

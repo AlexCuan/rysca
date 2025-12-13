@@ -58,17 +58,16 @@ int main(int argc, char *argv[]) {
     }
 
     // Inicializar capas con comprobación de errores
-    udp_layer_t *udp_layer = udp_open(argv[1], argv[2]);
+    // MODIFICADO: Se pasa RIP_PORT (520) explícitamente a udp_open
+    udp_layer_t *udp_layer = udp_open(argv[1], argv[2], RIP_PORT);
     if (udp_layer == NULL) {
         fprintf(stderr, "ERROR: No se pudo abrir la capa UDP. Revisa ficheros de configuración.\n");
         return -1;
     }
 
     ripv2_route_table_t *rip_table = ripv2_route_table_create();
-    // (Opcional) Aquí podrías cargar rutas iniciales si el enunciado lo pidiera
-    // ripv2_route_table_read(argv[2], rip_table);
 
-    printf("Servidor RIPv2 arrancado. Escuchando puerto 520...\n");
+    printf("Servidor RIPv2 arrancado. Escuchando puerto %d...\n", RIP_PORT);
 
     while (1) {
         // Imprimir la tabla de rutas en cada iteración
@@ -84,36 +83,38 @@ int main(int argc, char *argv[]) {
         ipv4_addr_t src_ip;
         unsigned char buffer[1500];
         memset(buffer, 0, sizeof(buffer));
+
         // Timeout de 1000ms para no bloquear eternamente y poder ejecutar manage_timers
         int len = udp_rcv(udp_layer, &src_port, src_ip, buffer, sizeof(buffer), 1000);
 
-    if (len >= 4) { // Mínimo tamaño de cabecera RIP (4 bytes)
+        if (len >= 4) { // Mínimo tamaño de cabecera RIP (4 bytes)
 
-    ripv2_msg_t *rip_msg = (ripv2_msg_t *)buffer;
+            ripv2_msg_t *rip_msg = (ripv2_msg_t *)buffer;
 
-    // Validar versión
-    if (rip_msg->version != 2) continue;
+            // Validar versión
+            if (rip_msg->version != 2) continue;
 
-    if (rip_msg->command == RIP_COMMAND_REQUEST) {
-        // Validar que hay al menos 1 entrada (4 header + 20 entry = 24 bytes)
-        if (len >= 24) {
-            process_request(udp_layer, rip_table, rip_msg, src_ip, src_port);
+            if (rip_msg->command == RIP_COMMAND_REQUEST) {
+                // Validar que hay al menos 1 entrada (4 header + 20 entry = 24 bytes)
+                if (len >= 24) {
+                    process_request(udp_layer, rip_table, rip_msg, src_ip, src_port);
+                }
+            }
+            else if (rip_msg->command == RIP_COMMAND_RESPONSE) {
+                printf("[DEBUG] Recibido RIP Response de %d.%d.%d.%d\n",
+                       src_ip[0], src_ip[1], src_ip[2], src_ip[3]);
+
+                // Llamar a la función que procesa la respuesta
+                int changes = process_response(rip_table, rip_msg, src_ip);
+
+                if (changes) {
+                    printf(">>> TABLA RIPv2 ACTUALIZADA TRAS RESPONSE <<<\n");
+                    ripv2_route_table_print(rip_table);
+                }
+            }
         }
     }
-    else if (rip_msg->command == RIP_COMMAND_RESPONSE) {
-        printf("[DEBUG] Recibido RIP Response de %d.%d.%d.%d\n",
-               src_ip[0], src_ip[1], src_ip[2], src_ip[3]);
-
-        // Llamar a la función que procesa la respuesta
-        int changes = process_response(rip_table, rip_msg, src_ip);
-
-        // Requisito del enunciado: "imprimir... el estado final de la misma una vez aplicados todos los cambios"
-        if (changes) {
-            printf(">>> TABLA RIPv2 ACTUALIZADA TRAS RESPONSE <<<\n");
-            ripv2_route_table_print(rip_table);
-        }
-    }
-    }}}
+}
 
 /**
  * @brief Procesa un mensaje RIPv2 de tipo REQUEST.
@@ -189,7 +190,10 @@ void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *
 
     // Calcular longitud exacta del paquete UDP
     int response_len = 4 + (response_entries * 20); // Header (4) + Entradas
-    udp_send(udp, 520, src_ip, src_port, (unsigned char *)&response_msg, response_len);
+
+    // MODIFICADO: udp_send actualizado a la nueva firma
+    // udp_send(layer, dest_ip, dest_port, payload, len, corrupt)
+    udp_send(udp, src_ip, src_port, (unsigned char *)&response_msg, response_len, 0);
 }
 
 /**
@@ -264,7 +268,6 @@ int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t s
         if (route == NULL) {
             // --- RUTA NUEVA ---
             if (new_metric < 16) {
-                // Crear y añadir la ruta usando las funciones del TAD
                 ripv2_route_t *new_route = ripv2_route_create(entry->ip, entry->mask, real_next_hop, new_metric);
                 if (ripv2_route_table_add(table, new_route) != -1) {
                     changes = 1;

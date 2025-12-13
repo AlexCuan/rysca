@@ -212,11 +212,10 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
 
     unsigned char* packet = malloc(buffer_len);
     if (!packet) return -1;
-
+    ipv4_addr_t dest_addr_pkt;
     // Bucle para descartar paquetes que no son para nuestro puerto
     while (1) {
-        int received_len = ipv4_recv(layer->ipv4_layer, IP_PROTOCOL_UDP, packet, src_addr, buffer_len, timeout);
-
+        int received_len = ipv4_recv(layer->ipv4_layer, IP_PROTOCOL_UDP, packet, src_addr, dest_addr_pkt, buffer_len, timeout);
         if (received_len < 0) {
             free(packet);
             return -1;
@@ -241,23 +240,43 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
 
         // Verify Checksum
         uint16_t received_checksum = ntohs(header->checksum);
-        if (received_checksum != 0) {
+        if (received_checksum != 0)
+        {
             ipv4_addr_t my_ip;
             memcpy(my_ip, layer->ipv4_layer->addr, IPv4_ADDR_SIZE);
 
             header->checksum = 0;
-            uint16_t calculated_checksum = udp_checksum(src_addr, my_ip, header, packet + sizeof(udp_header_t), payload_len);
+            uint16_t calculated_checksum = udp_checksum(src_addr, dest_addr_pkt, header, packet + sizeof(udp_header_t), payload_len);
+
             if (calculated_checksum == 0) calculated_checksum = 0xFFFF;
 
-            header->checksum = htons(received_checksum);
+            uint16_t received_checksum = ntohs(header->checksum);
+            if (received_checksum != 0) {
+                ipv4_addr_t my_ip;
+                memcpy(my_ip, layer->ipv4_layer->addr, IPv4_ADDR_SIZE);
 
-            if (calculated_checksum != received_checksum) {
-                printf("Error: UDP Checksum mismatch. Recv: 0x%04x, Calc: 0x%04x\n", received_checksum, calculated_checksum);
-                // Drop packet and continue waiting
-                continue;
+                header->checksum = 0;
+                uint16_t calculated_checksum = udp_checksum(src_addr, dest_addr_pkt, header, packet + sizeof(udp_header_t), payload_len);
+
+                if (calculated_checksum == 0) calculated_checksum = 0xFFFF;
+
+                header->checksum = htons(received_checksum);
+
+                if (calculated_checksum != received_checksum) {
+                    printf("Error: UDP Checksum mismatch. Recv: 0x%04x, Calc: 0x%04x\n", received_checksum, calculated_checksum);
+                    printf("\n[UDP CHECKSUM ERROR DEBUG]\n");
+                    printf("  Src IP: %d.%d.%d.%d\n", src_addr[0], src_addr[1], src_addr[2], src_addr[3]);
+                    printf("  Dest IP (Used for Calc): %d.%d.%d.%d\n", dest_addr_pkt[0], dest_addr_pkt[1], dest_addr_pkt[2], dest_addr_pkt[3]);
+                    printf("  UDP Length (Header): %d\n", ntohs(header->length));
+                    printf("  Payload Len: %d\n", payload_len);
+                    printf("  Recv Checksum: 0x%04x\n", received_checksum);
+                    printf("  Calc Checksum: 0x%04x\n", calculated_checksum);
+                    printf("[END DEBUG]\n\n");
+                    continue;
+                }
             }
         }
-
+        printf("[UDP DEBUG] Packet ACCEPTED! Dest Port: %d, Payload Len: %d\n", layer->local_port, payload_len);
         memcpy(buffer, packet + sizeof(udp_header_t), payload_len);
         free(packet);
         return payload_len;

@@ -329,8 +329,8 @@ void print_hex(unsigned char *data, int len) {
  *   Devuelve -1 si ocurre un error en la capa Ethernet
  */
 int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
-              unsigned char buffer[], ipv4_addr_t sender, int buf_len,
-              long int timeout) {
+              unsigned char buffer[], ipv4_addr_t sender, ipv4_addr_t dest,
+              int buf_len, long int timeout) {
 
     mac_addr_t src_mac;
     unsigned char eth_buffer[ETH_MTU];
@@ -349,6 +349,13 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
         }
         // TODO: Check this redundant cast
         ipv4_header_t *ip_header = (ipv4_header_t *)eth_buffer;
+
+
+          memcpy(sender, ip_header->src_addr, IPv4_ADDR_SIZE);
+
+          if (dest != NULL) {
+            memcpy(dest, ip_header->dest_addr, IPv4_ADDR_SIZE);
+          }
 
         // Validate Version and Header Length
         if ((ip_header->version_ihl >> 4) != 4) {

@@ -58,7 +58,7 @@
 int main(int argc, char *argv[]) {
     // 1. Argument parsing
     if (argc != 4) {
-        printf("Ussage: ./ripv2_client <config_file> <routes_file> <server_ip>\n");
+        printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip>\n");
         return -1;
     }
     char *config = argv[1];
@@ -66,7 +66,8 @@ int main(int argc, char *argv[]) {
     char *server_ip_str = argv[3]; // La IP de R1 (a quien le preguntamos)
 
     // 2. Open UDP Layer
-    udp_layer_t *udp_layer = udp_open(config, routes);
+    // MODIFICADO: Se pasa 0 para que asigne un puerto aleatorio
+    udp_layer_t *udp_layer = udp_open(config, routes, 0);
 
     if (!udp_layer) {
         perror("Failed to open UDP layer");
@@ -92,7 +93,9 @@ int main(int argc, char *argv[]) {
     int payload_len = RIP_HEADER_SIZE + RIP_ENTRY_SIZE;
 
     // Send to port 520
-    udp_send(udp_layer, 0, dest_ip, RIP_PORT, (unsigned char *)&msg, payload_len);
+    // MODIFICADO: Nueva firma de udp_send.
+    // Argumentos: layer, dest_ip, dest_port (RIP_PORT), payload, len, corrupt (0)
+    udp_send(udp_layer, dest_ip, RIP_PORT, (unsigned char *)&msg, payload_len, 0);
     printf("RIPv2 Request sent to %s\n", server_ip_str);
 
     uint16_t src_port;
@@ -111,7 +114,7 @@ int main(int argc, char *argv[]) {
             // Check if there are any entries
             if (len < 24) {
                 printf("Received RIPv2 Response, but it contains no routes.\n");
-                udp_close(udp_layer); // Buena práctica cerrar antes de salir
+                udp_close(udp_layer);
                 return 0;
             }
             int num_entries = (len - RIP_HEADER_SIZE) / RIP_ENTRY_SIZE; // Header is 4 bytes, Entry is 20
