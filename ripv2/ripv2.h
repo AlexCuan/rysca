@@ -16,6 +16,7 @@
 #define RIP_MAX_ENTRIES 25
 #define RIP_HEADER_SIZE 4
 #define RIP_ENTRY_SIZE 20
+#define RIP_MCAST_ADDR "224.0.0.9"
 
 typedef struct {
     uint16_t family;      // Address Family Identifier

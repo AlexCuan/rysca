@@ -15,6 +15,7 @@
 void process_request(udp_layer_t *udp, ripv2_route_table_t *table, ripv2_msg_t *msg, int len, ipv4_addr_t src_ip, uint16_t src_port);
 int process_response(ripv2_route_table_t *table, ripv2_msg_t *msg, ipv4_addr_t src_ip);
 void manage_timers(ripv2_route_table_t *table);
+void send_initial_request(udp_layer_t *udp_layer); // Nuevo prototipo
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
@@ -30,6 +31,7 @@ int main(int argc, char *argv[]) {
 
     ripv2_route_table_t *rip_table = ripv2_route_table_create();
     printf("Servidor RIPv2 arrancado. Escuchando puerto %d...\n", RIP_PORT);
+    send_initial_request(udp_layer);
 
     while (1) {
         printf("\n--- Estado actual de la tabla RIPv2 ---\n");
@@ -245,5 +247,33 @@ void manage_timers(ripv2_route_table_t *table) {
     if (changes) {
         printf("[INFO] Tabla actualizada por expiración de timers:\n");
         ripv2_route_table_print(table);
+    }
+}
+
+/**
+ * NUEVA FUNCIÓN: Envía un RIP Request solicitando la tabla completa.
+ * Destino: 224.0.0.9 (Multicast)
+ * Contenido: Una entrada con Family=0 y Metric=16 (infinito)
+ */
+void send_initial_request(udp_layer_t *udp_layer) {
+    ripv2_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+
+    msg.command = RIP_COMMAND_REQUEST;
+    msg.version = RIP_VERSION;
+
+    // Entrada especial para solicitar tabla completa (RFC 2453, sec 3.9.1)
+    msg.entries[0].family = 0; // Family 0
+    msg.entries[0].metric = htonl(16); // Metric infinity
+
+    int payload_len = RIP_HEADER_SIZE + RIP_ENTRY_SIZE;
+
+    ipv4_addr_t mcast_addr;
+    if (ipv4_str_addr(RIP_MCAST_ADDR, mcast_addr) == 0) {
+        printf("[RIPv2] Enviando Petición Inicial de Tabla a %s...\n", RIP_MCAST_ADDR);
+        // Enviamos al puerto RIP (520)
+        udp_send(udp_layer, mcast_addr, RIP_PORT, (unsigned char *)&msg, payload_len, 0);
+    } else {
+        fprintf(stderr, "[RIPv2] Error parseando dirección multicast.\n");
     }
 }

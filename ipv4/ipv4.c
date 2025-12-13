@@ -12,7 +12,7 @@
 
 /* Dirección IPv4 a cero: "0.0.0.0" */
 ipv4_addr_t IPv4_ZERO_ADDR = { 0, 0, 0, 0 };
-
+ipv4_addr_t IPv4_BCAST_ADDR = { 255, 255, 255, 255 };
 
 /* void ipv4_addr_str ( ipv4_addr_t addr, char* str );
  *
@@ -137,27 +137,51 @@ uint16_t ipv4_checksum ( unsigned char * data, int len )
  *   ARP falla, o si ocurre un error en la capa Ethernet.
  */
 int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigned char * payload, int payload_len, int corrupt){
-  ipv4_route_t *route = ipv4_route_table_lookup(layer->routing_table, dst);
-  if (!route) {
-    return -1;
-  }
 
   mac_addr_t next_hop_mac;
-  ipv4_addr_t next_hop_ip;
+  int is_multicast = ((dst[0] & 0xF0) == 0xE0); // 224.0.0.0 a 239.255.255.255
+  int is_broadcast = (memcmp(dst, IPv4_BCAST_ADDR, IPv4_ADDR_SIZE) == 0);
 
-  if (memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) == 0) {
-    memcpy(next_hop_ip, dst, IPv4_ADDR_SIZE);
-  } else {
-    memcpy(next_hop_ip, route->gateway_addr, IPv4_ADDR_SIZE);
+  // Lógica para determinar la MAC destino
+  if (is_broadcast) {
+      // 1. Mapeo Broadcast IPv4 -> Broadcast MAC (FF:FF:FF:FF:FF:FF)
+      memcpy(next_hop_mac, MAC_BCAST_ADDR, MAC_ADDR_SIZE);
+  }
+  else if (is_multicast) {
+      // 2. Mapeo Multicast IPv4 -> Multicast MAC (01:00:5E:xx:xx:xx)
+      // Se toman los últimos 23 bits de la IP y se añaden al prefijo 01:00:5E
+      next_hop_mac[0] = 0x01;
+      next_hop_mac[1] = 0x00;
+      next_hop_mac[2] = 0x5E;
+      next_hop_mac[3] = dst[1] & 0x7F; // Pone a 0 el bit más significativo del 2º byte (bit 24 de la IP)
+      next_hop_mac[4] = dst[2];
+      next_hop_mac[5] = dst[3];
+  }
+  else {
+      // 3. Caso Unicast: Comportamiento original (Ruta + ARP)
+      ipv4_route_t *route = ipv4_route_table_lookup(layer->routing_table, dst);
+      if (!route) {
+        return -1;
+      }
+
+      ipv4_addr_t next_hop_ip;
+      if (memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) == 0) {
+        memcpy(next_hop_ip, dst, IPv4_ADDR_SIZE);
+      } else {
+        memcpy(next_hop_ip, route->gateway_addr, IPv4_ADDR_SIZE);
+      }
+
+      // Resolver MAC usando ARP
+      if (arp_resolve(layer->iface, layer->addr, next_hop_ip, NULL, next_hop_mac) != 0) {
+        return -1;
+      }
   }
 
-  if (arp_resolve(layer->iface, layer->addr, next_hop_ip, NULL, next_hop_mac) != 0) {
-    return -1;
-  }
-
+  // --- Construcción y envío del paquete (código original reutilizado) ---
   const int header_len = sizeof(ipv4_header_t);
   const int total_len = header_len + payload_len;
   unsigned char* buffer = malloc(total_len);
+  if (buffer == NULL) return -1;
 
   ipv4_header_t* ip_header = (ipv4_header_t*) buffer;
   ip_header->version_ihl = (4 << 4) | 5;
@@ -165,7 +189,11 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigne
   ip_header->total_length = htons(total_len);
   ip_header->identification = 0;
   ip_header->flags_fragment_offset = 0;
-  ip_header->time_to_live = 64;
+  ip_header->time_to_live = 64; // TTL por defecto
+
+  // Si es multicast RIP, el TTL suele ser 1, pero 64 es seguro para laboratorios
+  if (is_multicast) ip_header->time_to_live = 1;
+
   ip_header->protocol = protocol;
   ip_header->header_checksum = 0;
   memcpy(ip_header->src_addr, layer->addr, IPv4_ADDR_SIZE);
@@ -174,7 +202,7 @@ int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigne
   uint16_t checksum = ipv4_checksum((unsigned char*)ip_header, header_len);
 
   if (corrupt) {
-    checksum ^= 0xFFFF; // Corrupt the checksum
+    checksum ^= 0xFFFF;
     printf("DEBUG: Corrupting IPv4 Checksum\n");
   }
 
