@@ -9,13 +9,21 @@
 
 int main(int argc, char* argv[])
 {
+    int disable_checksum = 0;
+    if (argc > 1 && strcmp(argv[argc - 1], "-d") == 0)
+    {
+        disable_checksum = 1;
+        argc--; // El programa ahora "cree" que hay un argumento menos
+    }
 
     if (argc < 4)
     {
         // Actualizamos el mensaje de uso
-        printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet mask]\n");
+printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet mask] ... [-d]\n");
         return -1;
     }
+
+
     char* config = argv[1];
     char* routes = argv[2];
     char* server_ip_str = argv[3];
@@ -25,6 +33,11 @@ int main(int argc, char* argv[])
     {
         perror("Failed to open UDP layer");
         return -1;
+    }
+    if (disable_checksum)
+    {
+        udp_layer->check_checksum = 0;
+        printf(">>> AVISO: Verificación de Checksum UDP DESACTIVADA (flag -d) <<<\n");
     }
 
     // ------------------------------------
