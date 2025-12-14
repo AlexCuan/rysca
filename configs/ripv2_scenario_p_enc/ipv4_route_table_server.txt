@@ -1,5 +1,0 @@
-# SubnetAddr    SubnetMask      Iface    Gateway
-# Red local
-10.0.2.0        255.255.255.0   eth1     0.0.0.0
-# Gateway por defecto (Router 2)
-0.0.0.0         0.0.0.0         eth1     10.0.2.1

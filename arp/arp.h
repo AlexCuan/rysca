@@ -9,6 +9,6 @@
 #include "../ipv4/ipv4.h"
 
 struct arp_pkt;
-int arp_resolve(eth_iface_t * iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, mac_addr_t target_mac, mac_addr_t mac);
+int arp_resolve(eth_iface_t* iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, mac_addr_t target_mac, mac_addr_t mac);
 
 #endif //ETH_BASE_ARP_H

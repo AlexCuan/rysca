@@ -34,18 +34,19 @@
  *   fichero de configuración.
  */
 int ipv4_config_read
-( char* filename, char ifname[], ipv4_addr_t addr, ipv4_addr_t netmask )
+(char* filename, char ifname[], ipv4_addr_t addr, ipv4_addr_t netmask)
 {
   int err = 0;
 
   /* Open IPv4 Configuration file */
   FILE* conf_file = fopen(filename, "r");
-  if (conf_file == NULL) {
+  if (conf_file == NULL)
+  {
     fprintf(stderr, "Error opening IPv4 Configuration file '%s': %s.\n",
             filename, strerror(errno));
     return -1;
   }
-  
+
   int ifname_read = 0;
   int addr_read = 0;
   int netmask_read = 0;
@@ -60,72 +61,92 @@ int ipv4_config_read
   char name_str[256];
   char value_str[256];
 
-  while ((! feof(conf_file)) && (err==0)) {
-
+  while ((!feof(conf_file)) && (err == 0))
+  {
     linenum++;
 
     /* Read next line of config file */
     char* line = fgets(line_buf, 1024, conf_file);
-    if (line == NULL) {
+    if (line == NULL)
+    {
       break;
     }
 
     /* If this line is empty or a comment, just ignore it */
-    if ((line_buf[0] == '\n') || (line_buf[0] == '#')) {
+    if ((line_buf[0] == '\n') || (line_buf[0] == '#'))
+    {
       err = 0;
       continue;
     }
 
     /* Parse line: Format "<var> <value>\n" */
     err = sscanf(line, "%s %s\n", name_str, value_str);
-    if (err != 2) {
-      fprintf(stderr, "%s:%d: Invalid IPv4 Configuration file format.\n", 
+    if (err != 2)
+    {
+      fprintf(stderr, "%s:%d: Invalid IPv4 Configuration file format.\n",
               filename, linenum);
       fprintf(stderr, "%s:%d: Format must be: <var> <value>\n",
-              filename, linenum);              
+              filename, linenum);
       err = -1;
-
-    } else {
-
+    }
+    else
+    {
       /* Parse read name/value pair */
-      if (strcasecmp(name_str, "Interface") == 0) {
+      if (strcasecmp(name_str, "Interface") == 0)
+      {
         strcpy(ifname, value_str);
         ifname_read = 1;
         err = 0;
-      } else if (strcasecmp(name_str, "IPv4Address") == 0) {
+      }
+      else if (strcasecmp(name_str, "IPv4Address") == 0)
+      {
         err = ipv4_str_addr(value_str, addr);
-        if (err != 0) {
-          fprintf(stderr, "%s:%d: Invalid 'IPv4Address' value: '%s'\n", 
+        if (err != 0)
+        {
+          fprintf(stderr, "%s:%d: Invalid 'IPv4Address' value: '%s'\n",
                   filename, linenum, value_str);
-        } else {
+        }
+        else
+        {
           addr_read = 1;
         }
-      } else if (strcasecmp(name_str, "SubnetMask") == 0) {
+      }
+      else if (strcasecmp(name_str, "SubnetMask") == 0)
+      {
         err = ipv4_str_addr(value_str, netmask);
-        if (err != 0) {
+        if (err != 0)
+        {
           fprintf(stderr, "%s:%d: Invalid 'SubnetMask' value: '%s'\n",
                   filename, linenum, value_str);
-        } else {
+        }
+        else
+        {
           netmask_read = 1;
         }
-      } else {
-        fprintf(stderr, "%s:%d: Unknown variable: '%s'\n", 
+      }
+      else
+      {
+        fprintf(stderr, "%s:%d: Unknown variable: '%s'\n",
                 filename, linenum, name_str);
         err = -1;
       }
-    }  
+    }
   }
 
-  if (err == 0) {
-    if (ifname_read == 0) {
+  if (err == 0)
+  {
+    if (ifname_read == 0)
+    {
       fprintf(stderr, "%s: Missing 'Interface' value\n", filename);
       err = -1;
     }
-    if (addr_read == 0) {
+    if (addr_read == 0)
+    {
       fprintf(stderr, "%s: Missing 'IPv4Address' value\n", filename);
       err = -1;
     }
-    if (netmask_read == 0) {
+    if (netmask_read == 0)
+    {
       fprintf(stderr, "%s: Missing 'SubnetMask' value\n", filename);
       err = -1;
     }
