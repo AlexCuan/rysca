@@ -1,13 +1,16 @@
 #include "ripv2.h"
 #include "../udp/udp.h"
 #include <stdio.h>
-#include <string.h>
+#include "ripv2_route_table.h"
 #include <arpa/inet.h>
 
 /**
  * Cliente RIPv2 modificado para soportar peticiones específicas.
  * Uso: ./ripv2_client <conf> <routes> <server_ip> [subnet mask] [subnet mask] ...
  */
+
+#define RX_TIMEOUT_MS 2000
+
 int main(int argc, char *argv[]) {
     if (argc < 4) {
         printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet mask] ...\n");
@@ -32,6 +35,8 @@ int main(int argc, char *argv[]) {
     msg.command = RIP_COMMAND_REQUEST;
     msg.version = RIP_VERSION;
     int payload_len = 0;
+
+    ripv2_route_table_t *client_table = ripv2_route_table_create();
 
     // --- CONSTRUCCIÓN DEL REQUEST ---
     if (argc == 4) {
@@ -68,35 +73,41 @@ int main(int argc, char *argv[]) {
     printf("RIPv2 Request sent to %s (%d bytes)\n", server_ip_str, payload_len);
 
     // --- RECEPCIÓN ---
+    printf("\nWaiting for response(s)...\n");
+
     uint16_t src_port;
     ipv4_addr_t src_ip;
     unsigned char buffer[1500];
+    int packets_received = 0;
 
-    int len = udp_rcv(udp_layer, &src_port, src_ip, buffer, 1500, 5000);
+    while (1) {
+        int len = udp_rcv(udp_layer, &src_port, src_ip, buffer, sizeof(buffer), RX_TIMEOUT_MS);
 
-    if (len > 0) {
-        ripv2_msg_t *response = (ripv2_msg_t *)buffer;
-        if (response->command == RIP_COMMAND_RESPONSE) {
-            int num_entries = (len - RIP_HEADER_SIZE) / RIP_ENTRY_SIZE;
-            printf("Received RIPv2 Response with %d entries:\n", num_entries);
-            printf("------------------------------------------\n");
-
-            for (int i = 0; i < num_entries; i++) {
-                ripv2_entry_t *entry = &response->entries[i];
-                char ip_str[16], mask_str[16];
-                ipv4_addr_str(entry->ip, ip_str);
-                ipv4_addr_str(entry->mask, mask_str);
-                uint32_t metric = ntohl(entry->metric);
-
-                printf("  Entry %d: Subnet %s/%s | Metric: %u\n",
-                       i + 1, ip_str, mask_str, metric);
-            }
-            printf("------------------------------------------\n");
+        if (len < 0) {
+            // Timeout -> Fin de transmisión
+            break;
         }
-    } else {
-        printf("Failed to receive RIPv2 Response.\n");
+
+        ripv2_msg_t *response = (ripv2_msg_t *)buffer;
+        if (response->version != 2) continue;
+        if (response->command != RIP_COMMAND_RESPONSE) continue;
+
+        packets_received++;
+        printf("Received packet #%d from server.\n", packets_received);
+
+        // REUTILIZACIÓN: Usamos la función compartida para meter datos en la tabla
+        ripv2_process_response(client_table, response, src_ip);
     }
 
+    if (packets_received > 0) {
+        printf("\n--- Final Consolidated Routing Table ---\n");
+        ripv2_route_table_print(client_table); // Imprimimos la tabla ordenada y limpia
+    } else {
+        printf("Timeout: No response received.\n");
+    }
+
+    // Limpieza
+    ripv2_route_table_free(client_table);
     udp_close(udp_layer);
     return 0;
 }
