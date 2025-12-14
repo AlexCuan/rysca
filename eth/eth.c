@@ -162,8 +162,8 @@ void eth_getaddr ( eth_iface_t * iface, mac_addr_t addr )
  * ERRORES:
  *   La función devuelve '-1' si se ha producido algún error. 
  */
-int eth_send 
-( eth_iface_t * iface, 
+int eth_send
+( eth_iface_t * iface,
   mac_addr_t dst, uint16_t type, unsigned char * payload, int payload_len )
 {
   int bytes_sent;
@@ -178,31 +178,45 @@ int eth_send
   struct eth_frame eth_frame;
   memcpy(eth_frame.dest_addr, dst, MAC_ADDR_SIZE);
   memcpy(eth_frame.src_addr, iface->mac_address, MAC_ADDR_SIZE);
-  eth_frame.type = htons(type);  
+  eth_frame.type = htons(type);
+
+  /* Copiar el payload original */
   memcpy(eth_frame.payload, payload, payload_len);
-  int eth_frame_len = ETH_HEADER_SIZE + payload_len;
 
-  /* Imprimir trama Ethernet */
-  char* iface_name = eth_getname(iface);
-  char mac_str[MAC_STR_LENGTH];
-  mac_addr_str(dst, mac_str);
-  printf("eth_send(type=0x%04x, payload[%d]) > %s/%s\n",
-         type, payload_len, iface_name, mac_str);
-  print_pkt((unsigned char *) &eth_frame, eth_frame_len, ETH_HEADER_SIZE);
+  /* --- INICIO LÓGICA DE PADDING --- */
+  int final_payload_len = payload_len;
 
-  /* Enviar la trama Ethernet creada con rawnet_send() y comprobar errores */
+  if (payload_len < ETH_MIN_PAYLOAD) {
+    // Calcular cuántos bytes de relleno faltan
+    int padding_len = ETH_MIN_PAYLOAD - payload_len;
+
+    // Rellenar con ceros la parte sobrante del buffer del payload
+    // eth_frame.payload es suficientemente grande (ETH_MTU = 1500)
+    memset(eth_frame.payload + payload_len, 0, padding_len);
+
+    // Actualizar la longitud final que vamos a enviar
+    final_payload_len = ETH_MIN_PAYLOAD;
+
+    //Debug
+    printf("[ETH] Padding applied: Payload %d -> %d bytes\n", payload_len, final_payload_len);
+  }
+  /* --- FIN LÓGICA DE PADDING --- */
+
+  int eth_frame_len = ETH_HEADER_SIZE + final_payload_len;
+
+  /* Nota: Usamos eth_frame_len, que ahora incluye el padding si fue necesario */
   bytes_sent = rawnet_send
     (iface->raw_iface, (unsigned char *) &eth_frame, eth_frame_len);
+
   if (bytes_sent == -1) {
-    fprintf(stderr, "eth_send(): ERROR en rawnet_send(): %s\n", 
+    fprintf(stderr, "eth_send(): ERROR en rawnet_send(): %s\n",
             rawnet_strerror());
     return -1;
   }
 
-  /* Devolver el número de bytes de datos recibidos */
-  return (bytes_sent - ETH_HEADER_SIZE);
+  /* Devolver el número de bytes de datos útiles enviados (sin contar el padding) */
+  return payload_len;
 }
-
 /* int eth_recv 
  * ( eth_iface_t * iface, 
  *   mac_addr_t src, uint16_t type, unsigned char buffer[], long int timeout );
@@ -257,6 +271,8 @@ int eth_recv
     return -1;
   }
 
+
+
   /* Inicializar temporizador para mantener timeout si se reciben tramas con
      tipo incorrecto. */
   timerms_t timer;
@@ -272,29 +288,43 @@ int eth_recv
   do {
     long int time_left = timerms_left(&timer);
 
-    /* Recibir trama del interfaz Ethernet y procesar errores */
-    frame_len = rawnet_recv (iface->raw_iface, eth_buffer, eth_buf_len,
-                             time_left);
+    frame_len = rawnet_recv (iface->raw_iface, eth_buffer, eth_buf_len, time_left);
+
     if (frame_len < 0) {
-      fprintf(stderr, "eth_recv(): ERROR en rawnet_recv(): %s\n", 
-              rawnet_strerror());
+      // Error...
       return -1;
     } else if (frame_len == 0) {
-      /* Timeout! */
-      return 0;
-    } else if (frame_len < ETH_HEADER_SIZE) {
-      fprintf(stderr, "eth_recv(): Trama de tamaño invalido: %d bytes\n",
-              frame_len);
-      continue;
+      return 0; // Timeout
     }
 
-    /* Comprobar si es la trama que estamos buscando */
     eth_frame_ptr = (struct eth_frame *) eth_buffer;
-    is_my_mac = (memcmp(eth_frame_ptr->dest_addr, 
-                        iface->mac_address, MAC_ADDR_SIZE) == 0);
+
+    // --- DIAGNÓSTICO: Ver qué está llegando ---
+    // Solo imprimimos si es IP (0x0800) para no saturar con basura
+    if (ntohs(eth_frame_ptr->type) == 0x0800) {
+        printf("[ETH DEBUG] Trama IP recibida. Dest MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+               eth_frame_ptr->dest_addr[0], eth_frame_ptr->dest_addr[1],
+               eth_frame_ptr->dest_addr[2], eth_frame_ptr->dest_addr[3],
+               eth_frame_ptr->dest_addr[4], eth_frame_ptr->dest_addr[5]);
+    }
+
+    // Comprobaciones
+    is_my_mac = (memcmp(eth_frame_ptr->dest_addr, iface->mac_address, MAC_ADDR_SIZE) == 0);
     is_target_type = (ntohs(eth_frame_ptr->type) == type);
 
-  } while ( ! (is_my_mac && is_target_type) );
+    // CORRECCIÓN MULTICAST
+    int is_multicast = (eth_frame_ptr->dest_addr[0] & 0x01);
+    int is_broadcast = (memcmp(eth_frame_ptr->dest_addr, MAC_BCAST_ADDR, MAC_ADDR_SIZE) == 0);
+
+    // Condición de aceptación: Es para mí, O multicast, O broadcast. Y el tipo coincide.
+    if ((is_my_mac || is_multicast || is_broadcast) && is_target_type) {
+        break; // ACEPTAR PAQUETE
+    }
+
+    // Si llegamos aquí, lo descartamos y seguimos esperando
+    // printf("[ETH DEBUG] Descartado (No es para mí o tipo incorrecto)\n");
+
+  } while (1); // Bucle infinito hasta break o timeout
   
   /* Trama recibida con 'tipo' indicado. Copiar datos y dirección MAC origen */
   memcpy(src, eth_frame_ptr->src_addr, MAC_ADDR_SIZE);

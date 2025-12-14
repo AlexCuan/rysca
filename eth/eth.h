@@ -10,6 +10,7 @@
 typedef unsigned char mac_addr_t [MAC_ADDR_SIZE];
 
 #define ETH_TYPE_IPV4 0x0800
+#define ETH_MIN_PAYLOAD 46
 
 /* Dirección MAC de difusión: "FF:FF:FF:FF:FF:FF" */
 extern mac_addr_t MAC_BCAST_ADDR;

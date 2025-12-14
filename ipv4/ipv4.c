@@ -12,7 +12,7 @@
 
 /* Dirección IPv4 a cero: "0.0.0.0" */
 ipv4_addr_t IPv4_ZERO_ADDR = { 0, 0, 0, 0 };
-
+ipv4_addr_t IPv4_BCAST_ADDR = { 255, 255, 255, 255 };
 
 /* void ipv4_addr_str ( ipv4_addr_t addr, char* str );
  *
@@ -136,47 +136,76 @@ uint16_t ipv4_checksum ( unsigned char * data, int len )
  *   Devuelve -1 si no se encuentra una ruta al destino, si la resolución
  *   ARP falla, o si ocurre un error en la capa Ethernet.
  */
-int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigned char * payload, int payload_len){
-  ipv4_route_t *route = ipv4_route_table_lookup(layer->routing_table, dst);
-  if (!route) {
-    return -1;
-  }
+int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol,  unsigned char * payload, int payload_len, int corrupt){
 
   mac_addr_t next_hop_mac;
-  ipv4_addr_t next_hop_ip;
-  // el destino está en la misma red local y no se necesita un router para llegar a él.
-  if (memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) == 0) {
-    memcpy(next_hop_ip, dst, IPv4_ADDR_SIZE);
-  } else {
-    memcpy(next_hop_ip, route->gateway_addr, IPv4_ADDR_SIZE);
+  int is_multicast = ((dst[0] & 0xF0) == 0xE0); // 224.0.0.0 a 239.255.255.255
+  int is_broadcast = (memcmp(dst, IPv4_BCAST_ADDR, IPv4_ADDR_SIZE) == 0);
+
+  // Lógica para determinar la MAC destino
+  if (is_broadcast) {
+      // 1. Mapeo Broadcast IPv4 -> Broadcast MAC (FF:FF:FF:FF:FF:FF)
+      memcpy(next_hop_mac, MAC_BCAST_ADDR, MAC_ADDR_SIZE);
+  }
+  else if (is_multicast) {
+      // 2. Mapeo Multicast IPv4 -> Multicast MAC (01:00:5E:xx:xx:xx)
+      // Se toman los últimos 23 bits de la IP y se añaden al prefijo 01:00:5E
+      next_hop_mac[0] = 0x01;
+      next_hop_mac[1] = 0x00;
+      next_hop_mac[2] = 0x5E;
+      next_hop_mac[3] = dst[1] & 0x7F; // Pone a 0 el bit más significativo del 2º byte (bit 24 de la IP)
+      next_hop_mac[4] = dst[2];
+      next_hop_mac[5] = dst[3];
+  }
+  else {
+      // 3. Caso Unicast: Comportamiento original (Ruta + ARP)
+      ipv4_route_t *route = ipv4_route_table_lookup(layer->routing_table, dst);
+      if (!route) {
+        return -1;
+      }
+
+      ipv4_addr_t next_hop_ip;
+      if (memcmp(route->gateway_addr, IPv4_ZERO_ADDR, IPv4_ADDR_SIZE) == 0) {
+        memcpy(next_hop_ip, dst, IPv4_ADDR_SIZE);
+      } else {
+        memcpy(next_hop_ip, route->gateway_addr, IPv4_ADDR_SIZE);
+      }
+
+      // Resolver MAC usando ARP
+      if (arp_resolve(layer->iface, layer->addr, next_hop_ip, NULL, next_hop_mac) != 0) {
+        return -1;
+      }
   }
 
-  if (arp_resolve(layer->iface, layer->addr, next_hop_ip, next_hop_mac) != 0) {
-    return -1;
-  }
-
+  // --- Construcción y envío del paquete (código original reutilizado) ---
   const int header_len = sizeof(ipv4_header_t);
   const int total_len = header_len + payload_len;
   unsigned char* buffer = malloc(total_len);
+  if (buffer == NULL) return -1;
 
   ipv4_header_t* ip_header = (ipv4_header_t*) buffer;
-  /* El byte 01000101 (binario) se asigna a ip_header->version_ihl.
-  //Un paquete IPv4 estándar sin opciones tiene una cabecera de 20 bytes.
-  //El valor de IHL indica la longitud de la cabecera en "palabras" de 32 bits
-  //(4 bytes). Por lo tanto, para una cabecera de 20 bytes, el valor de IHL sería
-  5 (porque 5 * 4 bytes = 20 bytes). */
   ip_header->version_ihl = (4 << 4) | 5;
   ip_header->type_of_service = 0;
   ip_header->total_length = htons(total_len);
   ip_header->identification = 0;
   ip_header->flags_fragment_offset = 0;
-  ip_header->time_to_live = 64;
+  ip_header->time_to_live = 64; // TTL por defecto
+
+  // Si es multicast RIP, el TTL suele ser 1, pero 64 es seguro para laboratorios
+  if (is_multicast) ip_header->time_to_live = 1;
+
   ip_header->protocol = protocol;
   ip_header->header_checksum = 0;
   memcpy(ip_header->src_addr, layer->addr, IPv4_ADDR_SIZE);
   memcpy(ip_header->dest_addr, dst, IPv4_ADDR_SIZE);
 
   uint16_t checksum = ipv4_checksum((unsigned char*)ip_header, header_len);
+
+  if (corrupt) {
+    checksum ^= 0xFFFF;
+    printf("DEBUG: Corrupting IPv4 Checksum\n");
+  }
+
   ip_header->header_checksum = htons(checksum);
 
   memcpy(buffer + header_len, payload, payload_len);
@@ -328,8 +357,8 @@ void print_hex(unsigned char *data, int len) {
  *   Devuelve -1 si ocurre un error en la capa Ethernet
  */
 int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
-              unsigned char buffer[], ipv4_addr_t sender, int buf_len,
-              long int timeout) {
+              unsigned char buffer[], ipv4_addr_t sender, ipv4_addr_t dest,
+              int buf_len, long int timeout) {
 
     mac_addr_t src_mac;
     unsigned char eth_buffer[ETH_MTU];
@@ -341,12 +370,20 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
             return -1; // Error
         }
 
+
         if (payload_len < sizeof(ipv4_header_t)) {
             // Packet too small to be a valid IPv4 packet
             continue;
         }
         // TODO: Check this redundant cast
         ipv4_header_t *ip_header = (ipv4_header_t *)eth_buffer;
+
+
+          memcpy(sender, ip_header->src_addr, IPv4_ADDR_SIZE);
+
+          if (dest != NULL) {
+            memcpy(dest, ip_header->dest_addr, IPv4_ADDR_SIZE);
+          }
 
         // Validate Version and Header Length
         if ((ip_header->version_ihl >> 4) != 4) {
@@ -359,6 +396,8 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
             continue;
         }
 
+
+
         // 2. Validate Checksum
         uint16_t received_checksum = ip_header->header_checksum;
         ip_header->header_checksum = 0;
@@ -370,15 +409,27 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
             continue;
         }
 
-        // 3. Check destination address
-        if (memcmp(ip_header->dest_addr, layer->addr, IPv4_ADDR_SIZE) != 0) {
-            // Not for us
-            continue;
-        }
-
-        // 4. Check protocol
         if (ip_header->protocol != protocol) {
-            continue;
+          // printf("Ignored packet with protocol %d (Expected %d)\n", ip_header->protocol, protocol);
+          continue;
+      }
+
+        // 3. Check destination address
+        int is_for_me = (memcmp(ip_header->dest_addr, layer->addr, IPv4_ADDR_SIZE) == 0);
+
+        // CORRECCIÓN MULTICAST: 224.0.0.0/4 (0xE0...)
+        int is_multicast = ((ip_header->dest_addr[0] & 0xF0) == 0xE0);
+        int is_broadcast = (ip_header->dest_addr[3] == 255); // Simplificación broadcast
+
+        // --- DIAGNÓSTICO ---
+        printf("[IPv4 DEBUG] Paquete recibido para %d.%d.%d.%d (Mio:%d, Multi:%d)\n",
+               ip_header->dest_addr[0], ip_header->dest_addr[1],
+               ip_header->dest_addr[2], ip_header->dest_addr[3],
+               is_for_me, is_multicast);
+
+        if (!is_for_me && !is_multicast && !is_broadcast) {
+             printf("[IPv4 DEBUG] ... Descartado por IP destino incorrecta.\n");
+             continue; // No es para nosotros
         }
 
         // 5. Get payload
@@ -401,11 +452,11 @@ int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol,
 
         // 8. Print payload to screen
         printf("Received IPv4 packet with protocol %d from ", protocol);
-        char sender_str[IPv4_STR_MAX_LENGTH];
-        ipv4_addr_str(sender, sender_str);
-        printf("%s\n", sender_str);
-        printf("IP Payload (%d bytes):\n", len_to_copy);
-        print_hex(buffer, len_to_copy);
+        // char sender_str[IPv4_STR_MAX_LENGTH];
+        // ipv4_addr_str(sender, sender_str);
+        // printf("%s\n", sender_str);
+        // printf("IP Payload (%d bytes):\n", len_to_copy);
+        // print_hex(buffer, len_to_copy);
 
         return len_to_copy;
     }

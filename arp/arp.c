@@ -46,6 +46,7 @@ static arp_cache_entry_t* arp_cache_find(ipv4_addr_t ip_addr) {
                 arp_cache[i].state = ARP_ENTRY_FREE;
                 return NULL;
             }
+            arp_cache[i].timestamp = time(NULL);
             return &arp_cache[i];
         }
     }
@@ -93,7 +94,7 @@ static void arp_cache_add(ipv4_addr_t ip_addr, mac_addr_t mac_addr) {
  *   tiempo de espera agotado.
  */
 
-int arp_resolve(eth_iface_t * iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, mac_addr_t mac) {
+int arp_resolve(eth_iface_t * iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, mac_addr_t target_mac, mac_addr_t mac) {
     arp_cache_entry_t* entry = arp_cache_find(target_ip);
     if (entry != NULL) {
         memcpy(mac, entry->mac_addr, MAC_ADDR_SIZE);
@@ -108,8 +109,16 @@ int arp_resolve(eth_iface_t * iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, 
     request.oper = htons(1); // ARP request
     eth_getaddr(iface, request.sha);
     memcpy(request.spa, src_ip, IPv4_ADDR_SIZE);
-    memcpy(request.tha, MAC_BCAST_ADDR, MAC_ADDR_SIZE);
     memcpy(request.tpa, target_ip, IPv4_ADDR_SIZE);
+
+    mac_addr_t dest_mac;
+    if (target_mac != NULL) {
+        memcpy(dest_mac, target_mac, MAC_ADDR_SIZE);
+        memcpy(request.tha, target_mac, MAC_ADDR_SIZE);
+    } else {
+        memcpy(dest_mac, MAC_BCAST_ADDR, MAC_ADDR_SIZE);
+        memset(request.tha, 0, MAC_ADDR_SIZE);
+    }
 
     unsigned char buffer[ETH_MTU];
     mac_addr_t dummy_source_mac;
@@ -119,7 +128,7 @@ int arp_resolve(eth_iface_t * iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, 
     int i;
 
     for (i = 0; i < num_retries; i++) {
-        eth_send(iface, MAC_BCAST_ADDR, 0x0806, (unsigned char *)&request, sizeof(struct arp_pkt));
+        eth_send(iface, dest_mac, 0x0806, (unsigned char *)&request, sizeof(struct arp_pkt));
         timerms_reset(&timer, timeouts[i]);
 
         do {
