@@ -11,6 +11,7 @@
 #define RIP_TIMEOUT 180
 #define RIP_GARBAGE_SEC 120
 
+
 // Configuración RIP
 #define RIP_UPDATE_INTERVAL 30
 #define RIP_JITTER_MAX 5
@@ -27,8 +28,8 @@ void send_updates(udp_layer_t *udp, ripv2_route_table_t *table, int is_triggered
 void send_initial_request(udp_layer_t *udp);
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        printf("Uso: ./ripv2_server <config_file> <route_table_file>\n");
+    if (argc < 3 || argc > 4) {
+        printf("Uso: ./ripv2_server <config_file> <route_table_file> [rip_routes_file]\n");
         return -1;
     }
 
@@ -41,6 +42,11 @@ int main(int argc, char *argv[]) {
     }
 
     ripv2_route_table_t *rip_table = ripv2_route_table_create();
+    if (argc == 4) {
+        char *rip_routes_file = argv[3];
+        ripv2_route_table_read(rip_routes_file, rip_table);
+    }
+
     printf("Servidor RIPv2 arrancado. Escuchando puerto %d...\n", RIP_PORT);
 
     // 1. Initial Request (Pedir tabla al arrancar)

@@ -5,7 +5,7 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
-#include <arpa/inet.h> // Para inet_ntoa si fuera necesario, o usar ipv4_addr_str
+#include <arpa/inet.h>
 
 /* Estructura opaca para la tabla de rutas RIPv2 */
 struct ripv2_route_table {
@@ -184,35 +184,49 @@ void ripv2_route_table_print ( ripv2_route_table_t * table )
   }
 }
 
-
-// TODO: Cambiar el formato esperado al de una tabla ripv2_scenario_2_routers con mas entradas
 /* Helpers para lectura de fichero (simplificado) */
 int ripv2_route_table_read ( char * filename, ripv2_route_table_t * table )
 {
   FILE * file = fopen(filename, "r");
   if (file == NULL) {
+    perror("Error opening RIPv2 routes file");
     return -1;
   }
 
   char line[256];
+  int count = 0;
+
   while (fgets(line, sizeof(line), file)) {
-    if (line[0] == '#' || line[0] == '\n') continue;
+    // Ignorar líneas vacías o comentarios (#)
+    if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
 
     char subnet_str[32], mask_str[32], nh_str[32];
     int metric;
-    
-    // Formato esperado: Subnet Mask NextHop Metric
+
+    // Parsear la línea
     if (sscanf(line, "%s %s %s %d", subnet_str, mask_str, nh_str, &metric) == 4) {
       ipv4_addr_t subnet, mask, nh;
+
+      // Convertir strings a ipv4_addr_t
       if (ipv4_str_addr(subnet_str, subnet) == 0 &&
           ipv4_str_addr(mask_str, mask) == 0 &&
           ipv4_str_addr(nh_str, nh) == 0) {
-          
-          ripv2_route_t * new_route = ripv2_route_create(subnet, mask, nh, metric);
-          ripv2_route_table_add(table, new_route);
-      }
+
+        ripv2_route_t * new_route = ripv2_route_create(subnet, mask, nh, (uint32_t)metric);
+        if (new_route) {
+          if (ripv2_route_table_add(table, new_route) != -1) {
+            count++;
+          } else {
+            // Si falla al añadir (ej. tabla llena), liberar memoria
+            ripv2_route_free(new_route);
+          }
+        }
+          }
     }
   }
+
   fclose(file);
-  return 0;
+  printf("[RIPv2] Loaded %d routes from %s\n", count, filename);
+  return count;
 }
+

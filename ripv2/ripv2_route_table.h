@@ -21,7 +21,7 @@ void ripv2_route_print ( ripv2_route_t * route );
 
 void ripv2_route_free ( ripv2_route_t * route );
 
-#define ripv2_ROUTE_TABLE_SIZE 25
+#define ripv2_ROUTE_TABLE_SIZE 256
 
 typedef struct ripv2_route_table ripv2_route_table_t;
 
@@ -47,4 +47,6 @@ void ripv2_route_table_print ( ripv2_route_table_t * table );
 int ripv2_route_table_write ( ripv2_route_table_t * table, char * filename );
 
 int ripv2_route_table_size(ripv2_route_table_t *table);
+
+
 #endif /* _IPv4_ROUTE_TABLE_H */
