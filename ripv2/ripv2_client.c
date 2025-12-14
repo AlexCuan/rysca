@@ -3,17 +3,22 @@
 #include <stdio.h>
 #include "ripv2_route_table.h"
 #include <arpa/inet.h>
-
-/**
- * Cliente RIPv2 modificado para soportar peticiones específicas.
- * Uso: ./ripv2_client <conf> <routes> <server_ip> [subnet mask] [subnet mask] ...
- */
+#include <string.h> // Necesario para strcmp
 
 #define RX_TIMEOUT_MS 2000
 
 int main(int argc, char *argv[]) {
+
+    // --- NUEVO: Detección del flag -d ---
+    int disable_checksum = 0;
+    if (argc > 1 && strcmp(argv[argc-1], "-d") == 0) {
+        disable_checksum = 1;
+        argc--; // El programa ahora "cree" que hay un argumento menos
+    }
+
     if (argc < 4) {
-        printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet mask] ...\n");
+        // Actualizamos el mensaje de uso
+        printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet mask] ... [-d]\n");
         return -1;
     }
     char *config = argv[1];
@@ -25,6 +30,13 @@ int main(int argc, char *argv[]) {
         perror("Failed to open UDP layer");
         return -1;
     }
+
+    if (disable_checksum) {
+        udp_layer->check_checksum = 0;
+        printf(">>> AVISO: Verificación de Checksum UDP DESACTIVADA (flag -d) <<<\n");
+    }
+    // ------------------------------------
+
     ipv4_addr_t dest_ip;
     if(ipv4_str_addr(server_ip_str, dest_ip) != 0) {
         fprintf(stderr, "ERROR: Invalid server IP address '%s'\n", server_ip_str);

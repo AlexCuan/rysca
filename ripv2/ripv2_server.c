@@ -28,6 +28,13 @@ void send_updates(udp_layer_t *udp, ripv2_route_table_t *table, int is_triggered
 void send_initial_request(udp_layer_t *udp);
 
 int main(int argc, char *argv[]) {
+
+    int disable_checksum = 0;
+    if (argc > 1 && strcmp(argv[argc-1], "-d") == 0) {
+        disable_checksum = 1;
+        argc--;
+    }
+
     if (argc < 3 || argc > 4) {
         printf("Uso: ./ripv2_server <config_file> <route_table_file> [rip_routes_file]\n");
         return -1;
@@ -39,6 +46,11 @@ int main(int argc, char *argv[]) {
     if (udp_layer == NULL) {
         fprintf(stderr, "ERROR: No se pudo abrir la capa UDP.\n");
         return -1;
+    }
+
+    if (disable_checksum) {
+        udp_layer->check_checksum = 0;
+        printf(">>> AVISO: Verificación de Checksum UDP DESACTIVADA (flag -d) <<<\n");
     }
 
     ripv2_route_table_t *rip_table = ripv2_route_table_create();

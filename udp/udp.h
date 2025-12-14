@@ -8,7 +8,8 @@
 
 typedef struct {
     ipv4_layer_t* ipv4_layer;
-    uint16_t local_port; /* Puerto local (escucha/envío) */
+    uint16_t local_port;
+    int check_checksum;
 } udp_layer_t;
 
 typedef struct {

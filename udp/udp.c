@@ -48,7 +48,7 @@ udp_layer_t* udp_open(char* config_file, char* route_table, uint16_t port) {
     } else {
         layer->local_port = port;
     }
-
+    layer->check_checksum = 1;
     printf("DEBUG: UDP Layer opened on port %d\n", layer->local_port);
 
     return layer;
@@ -238,32 +238,22 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
         const int payload_len = received_len - sizeof(udp_header_t);
 
         // --- VERIFICACIÓN DE CHECKSUM ---
-        uint16_t received_checksum = ntohs(header->checksum);
+        if (layer->check_checksum) {
+            uint16_t received_checksum = ntohs(header->checksum);
 
-        // Si es 0, significa que el emisor no calculó checksum (permitido en UDP)
-        if (received_checksum != 0)
-        {
-            // 1. Poner a cero el campo checksum en el paquete para el cálculo
-            header->checksum = 0;
+            if (received_checksum != 0) {
+                header->checksum = 0;
+                // Recuerda usar dest_addr_pkt para que RIP multicast funcione
+                uint16_t calculated_checksum = udp_checksum(src_addr, dest_addr_pkt, header, packet + sizeof(udp_header_t), payload_len);
+                if (calculated_checksum == 0) calculated_checksum = 0xFFFF;
+                header->checksum = htons(received_checksum);
 
-            // 2. Calcular checksum
-            // IMPORTANTE: Usamos dest_addr_pkt que contiene la IP destino del paquete IP.
-            // Esto asegura que funcione para Unicast (mi IP) y Multicast (224.0.0.9 para RIPv2).
-            uint16_t calculated_checksum = udp_checksum(src_addr, dest_addr_pkt, header, packet + sizeof(udp_header_t), payload_len);
-
-            if (calculated_checksum == 0) calculated_checksum = 0xFFFF;
-
-            // 3. Restaurar el checksum original (buena práctica, aunque liberemos el paquete)
-            header->checksum = htons(received_checksum);
-
-            // 4. Comparar
-            if (calculated_checksum != received_checksum) {
-                printf("Error: UDP Checksum mismatch. Recv: 0x%04x, Calc: 0x%04x\n", received_checksum, calculated_checksum);
-                // Opcional: Imprimir detalles de debug si es necesario
-                continue; // DESCARTAR PAQUETE
+                if (calculated_checksum != received_checksum) {
+                    printf("Error: UDP Checksum mismatch. Recv: 0x%04x, Calc: 0x%04x\n", received_checksum, calculated_checksum);
+                    continue; // DESCARTAR
+                }
             }
         }
-        // --------------------------------
 
         // Si llegamos aquí, el checksum es válido o era 0.
         if (payload_len > 0) {
