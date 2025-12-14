@@ -134,7 +134,7 @@ int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsi
     if (corrupt)
     {
         chk ^= 0xFFFF;
-        printf("DEBUG: Corrupting UDP Checksum\n");
+        printf("[UDP DEBUG]: Corrupting UDP Checksum\n");
     }
 
     header->checksum = htons(chk);

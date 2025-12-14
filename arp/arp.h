@@ -1,7 +1,3 @@
-//
-// Created by Lucia Garcia on 17/9/25.
-//
-
 #ifndef ETH_BASE_ARP_H
 #define ETH_BASE_ARP_H
 
