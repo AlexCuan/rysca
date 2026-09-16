@@ -165,6 +165,19 @@ int arp_resolve(eth_iface_t* iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, m
             }
 
             struct arp_pkt* arp_reply = (struct arp_pkt*)buffer;
+
+            /* Aceptar solo Replies Ethernet/IPv4 bien formadas dirigidas a
+               nosotros y que resuelvan la IP que estabamos preguntando. */
+            if (ntohs(arp_reply->htype) != 1 || ntohs(arp_reply->ptype) != 0x0800 ||
+                arp_reply->hlen != MAC_ADDR_SIZE || arp_reply->plen != IPv4_ADDR_SIZE)
+            {
+                continue;
+            }
+            if (memcmp(arp_reply->tpa, src_ip, IPv4_ADDR_SIZE) != 0)
+            {
+                continue;
+            }
+
             if (ntohs(arp_reply->oper) == 2 && (memcmp(arp_reply->spa, target_ip, IPv4_ADDR_SIZE) == 0))
             {
                 memcpy(mac, arp_reply->sha, MAC_ADDR_SIZE);
