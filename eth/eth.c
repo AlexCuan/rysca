@@ -187,7 +187,9 @@ int eth_send
         // Actualizar la longitud final que vamos a enviar
         final_payload_len = ETH_MIN_PAYLOAD;
 
+#ifdef NET_DEBUG
         printf("[ETH] Padding applied: Payload %d -> %d bytes\n", payload_len, final_payload_len);
+#endif
     }
     /* --- FIN LÓGICA DE PADDING --- */
 
@@ -251,6 +253,7 @@ int eth_recv
         eth_frame_ptr = (struct eth_frame*)eth_buffer;
 
 
+#ifdef NET_DEBUG
         if (ntohs(eth_frame_ptr->type) == 0x0800)
         {
             printf("[ETH DEBUG] Trama IP recibida. Dest MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
@@ -258,6 +261,7 @@ int eth_recv
                    eth_frame_ptr->dest_addr[2], eth_frame_ptr->dest_addr[3],
                    eth_frame_ptr->dest_addr[4], eth_frame_ptr->dest_addr[5]);
         }
+#endif
 
         // Comprobaciones
         is_my_mac = (memcmp(eth_frame_ptr->dest_addr, iface->mac_address, MAC_ADDR_SIZE) == 0);

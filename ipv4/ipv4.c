@@ -454,14 +454,15 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
     int is_broadcast = (ip_header->dest_addr[3] == 255); // Simplificación broadcast
 
 
+#ifdef NET_DEBUG
     printf("[IPv4 DEBUG] Paquete recibido para %d.%d.%d.%d (Mio:%d, Multi:%d)\n",
            ip_header->dest_addr[0], ip_header->dest_addr[1],
            ip_header->dest_addr[2], ip_header->dest_addr[3],
            is_for_me, is_multicast);
+#endif
 
     if (!is_for_me && !is_multicast && !is_broadcast)
     {
-      printf("[IPv4 DEBUG] ... Descartado por IP destino incorrecta.\n");
       continue;
     }
 
