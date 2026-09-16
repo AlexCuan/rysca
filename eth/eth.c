@@ -80,6 +80,7 @@ eth_iface_t* eth_open(char* ifname)
     {
         fprintf(stderr, "eth_open(): ERROR en rawiface_open(): %s\n",
                 rawnet_strerror());
+        free(eth_iface);
         return NULL;
     }
     eth_iface->raw_iface = raw_iface;
