@@ -7,31 +7,29 @@
 /* int ipv4_config_read
  * ( char* filename, char ifname[], ipv4_addr_t addr, ipv4_addr_t netmask );
  *
- * DESCRIPCIÓN: 
- *   Esta función lee el fichero de configuración IPv4 especificado y devuelve
- *   el nombre del interfaz, la direccion IPv4 del mismo, y la máscara de
- *   subred.
+ * DESCRIPTION:
+ *   This function reads the specified IPv4 configuration file and returns the
+ *   name of the interface, its IPv4 address and the subnet mask.
  *
- *   La memoria del nombre del interfaz y de las direcciones IPv4 debe haber
- *   sido reservada previamente. Deben reservarse al menos 'IFACE_NAME_MAX_LENGTH'
- *   bytes para almacenar el nombre del interfaz.
+ *   The memory for the interface name and the IPv4 addresses must have been
+ *   reserved beforehand. At least 'IFACE_NAME_MAX_LENGTH' bytes must be
+ *   reserved to store the interface name.
  *
- * PARÁMETROS:
- *    'filename': Nombre del fichero de configuración que se desea leer.
- *      'ifname': Variable donde se copiará el nombre de la interfaz leida del
- *                fichero de configuración.
- *        'addr': Variable donde se copiará la dirección IPv4 del interfaz
- *                leida del fichero de configuración.
- *     'netmask': Variable donde se copiará la máscara de subred leida del
- *                fichero de configuración.
+ * PARAMETERS:
+ *    'filename': Name of the configuration file to read.
+ *      'ifname': Variable where the interface name read from the configuration
+ *                file will be copied.
+ *        'addr': Variable where the IPv4 address of the interface read from
+ *                the configuration file will be copied.
+ *     'netmask': Variable where the subnet mask read from the configuration
+ *                file will be copied.
  *
- * VALOR DEVUELTO:
- *   La función devuelve '0' si el fichero de configuración se ha leido
- *   correctamente.
+ * RETURN VALUE:
+ *   The function returns '0' if the configuration file was read correctly.
  *
- * ERRORES:
- *   La función devuelve '-1' si se ha producido algún error al leer el
- *   fichero de configuración.
+ * ERRORS:
+ *   The function returns '-1' if an error occurred while reading the
+ *   configuration file.
  */
 int ipv4_config_read
 (char* filename, char ifname[], ipv4_addr_t addr, ipv4_addr_t netmask);

@@ -12,7 +12,7 @@
 #define RIP_GARBAGE_SEC 120
 
 
-// Configuración RIP
+// RIP configuration
 #define RIP_UPDATE_INTERVAL 30
 #define RIP_JITTER_MAX 5
 #define RIP_MCAST_ADDR "224.0.0.9"
@@ -23,7 +23,7 @@ int current_interval = RIP_UPDATE_INTERVAL;
 void process_request(udp_layer_t* udp, ripv2_route_table_t* table, ripv2_msg_t* msg, int len, ipv4_addr_t src_ip,
                      uint16_t src_port);
 int manage_timers(ripv2_route_table_t* table);
-void send_updates(udp_layer_t* udp, ripv2_route_table_t* table, int is_triggered); // Unificada
+void send_updates(udp_layer_t* udp, ripv2_route_table_t* table, int is_triggered); // Unified
 void send_initial_request(udp_layer_t* udp);
 
 int main(int argc, char* argv[])
@@ -74,8 +74,8 @@ int main(int argc, char* argv[])
     {
         int triggered = 0;
 
-        // Garbage Collection y Timers
-        // Si una ruta expira, manage_timers devuelve 1 -> Trigger Update
+        // Garbage collection and timers
+        // If a route expires, manage_timers returns 1 -> triggered update
         if (manage_timers(rip_table))
         {
             triggered = 1;
@@ -101,7 +101,7 @@ int main(int argc, char* argv[])
                 }
                 else if (rip_msg->command == RIP_COMMAND_RESPONSE)
                 {
-                    // Si process_response devuelve 1 (cambios aprendidos) -> Trigger Update
+                    // If process_response returns 1 (routes learnt) -> triggered update
                     int changes = ripv2_process_response(rip_table, rip_msg, len, src_ip);
                     if (changes)
                     {
@@ -113,15 +113,15 @@ int main(int argc, char* argv[])
             }
         }
 
-        // 4. Gestión de actualizaciones (Triggered o Periódica)
+        // 4. Update handling (triggered or periodic)
         if (triggered)
         {
-            // TRIGGERED UPDATE: Se envía inmediatamente por cambios
+            // TRIGGERED UPDATE: sent immediately because something changed
             send_updates(udp_layer, rip_table, 1);
         }
         else
         {
-            // PERIODIC UPDATE: Se envía solo si expiró el timer
+            // PERIODIC UPDATE: sent only if the timer expired
             send_updates(udp_layer, rip_table, 0);
         }
     }
@@ -129,8 +129,8 @@ int main(int argc, char* argv[])
 
 /**
  * send_updates:
- * Envía actualizaciones (periódicas o triggered).
- * Fragmenta automáticamente en paquetes de 25 entradas.
+ * Sends updates (periodic or triggered).
+ * Automatically splits them into packets of 25 entries.
  */
 void send_updates(udp_layer_t* udp, ripv2_route_table_t* table, int is_triggered)
 {
@@ -143,8 +143,8 @@ void send_updates(udp_layer_t* udp, ripv2_route_table_t* table, int is_triggered
             return;
         }
 
-        /* RFC 2453 3.10.1: un triggered update no reprograma el envio
-           periodico, solo el periodico reinicia su propio temporizador. */
+        /* RFC 2453 3.10.1: a triggered update does not reschedule the periodic
+           one; only the periodic update restarts its own timer. */
         last_update_time = now;
         int jitter = rng_get_rand_in_range(-RIP_JITTER_MAX, RIP_JITTER_MAX);
         current_interval = RIP_UPDATE_INTERVAL + jitter;
@@ -181,7 +181,7 @@ void send_updates(udp_layer_t* udp, ripv2_route_table_t* table, int is_triggered
             metric_to_send = 16;
         }
 
-        // Si el paquete está lleno, enviar y resetear
+        // If the packet is full, send it and reset
         if (entry_count == RIP_MAX_ENTRIES)
         {
             int len = RIP_HEADER_SIZE + (entry_count * RIP_ENTRY_SIZE);
@@ -200,7 +200,7 @@ void send_updates(udp_layer_t* udp, ripv2_route_table_t* table, int is_triggered
         entry->metric = htonl(metric_to_send);
     }
 
-    // Enviar restantes
+    // Send whatever is left
     if (entry_count > 0)
     {
         int len = RIP_HEADER_SIZE + (entry_count * RIP_ENTRY_SIZE);
@@ -210,7 +210,7 @@ void send_updates(udp_layer_t* udp, ripv2_route_table_t* table, int is_triggered
 
 /**
  * manage_timers:
- * Devuelve 1 si hubo cambios (ruta expirada o borrada), 0 si no.
+ * Returns 1 if anything changed (route expired or deleted), 0 otherwise.
  */
 int manage_timers(ripv2_route_table_t* table)
 {
@@ -229,9 +229,9 @@ int manage_timers(ripv2_route_table_t* table)
         {
             printf("[TIMER] Ruta %d.%d.%d.%d expirada (>180s). Marcando Garbage.\n",
                    route->subnet[0], route->subnet[1], route->subnet[2], route->subnet[3]);
-            route->metric = 16; // Infinito
+            route->metric = 16; // Infinity
             route->is_garbage = 1;
-            route->last_updated = now; // Reiniciar timer para garbage collection
+            route->last_updated = now; // Restart the timer for garbage collection
             changes = 1;
         }
         else if (route->is_garbage && age > RIP_GARBAGE_SEC)
@@ -274,13 +274,13 @@ void send_initial_request(udp_layer_t* udp)
 void process_request(udp_layer_t* udp, ripv2_route_table_t* table, ripv2_msg_t* msg, int len, ipv4_addr_t src_ip,
                      uint16_t src_port)
 {
-    /* 'msg' apunta a un buffer de 1500 bytes pero solo tiene RIP_MAX_ENTRIES
-       entradas: sin acotar se leen datos fuera del mensaje y de la estructura. */
+    /* 'msg' points into a 1500 byte buffer but only holds RIP_MAX_ENTRIES
+       entries: unclamped this reads past both the message and the struct. */
     int num_entries_req = (len - RIP_HEADER_SIZE) / RIP_ENTRY_SIZE;
     if (num_entries_req <= 0) return;
     if (num_entries_req > RIP_MAX_ENTRIES) num_entries_req = RIP_MAX_ENTRIES;
 
-    // Detectar Whole Table Request
+    // Detect a whole table request
     int request_all = 0;
     if (num_entries_req == 1 && ntohs(msg->entries[0].family) == 0 && ntohl(msg->entries[0].metric) == 16)
     {
@@ -304,13 +304,13 @@ void process_request(udp_layer_t* udp, ripv2_route_table_t* table, ripv2_msg_t* 
             ripv2_route_t* route = ripv2_route_table_get(table, i);
             if (route == NULL) continue;
 
-            // Si el paquete está lleno (25 entradas), enviamos y reseteamos
+            // If the packet is full (25 entries), send it and reset
             if (response_entries_count == RIP_MAX_ENTRIES)
             {
                 int resp_len = RIP_HEADER_SIZE + (response_entries_count * RIP_ENTRY_SIZE);
                 udp_send(udp, src_ip, src_port, (unsigned char*)&response_msg, resp_len, 0);
 
-                // Resetear contador y limpiar entradas
+                // Reset the counter and clear the entries
                 response_entries_count = 0;
                 memset(response_msg.entries, 0, sizeof(response_msg.entries));
             }
@@ -328,7 +328,7 @@ void process_request(udp_layer_t* udp, ripv2_route_table_t* table, ripv2_msg_t* 
     {
         for (int i = 0; i < num_entries_req; i++)
         {
-            // Si el paquete de RESPUESTA está lleno, lo enviamos
+            // If the RESPONSE packet is full, send it
             if (response_entries_count == RIP_MAX_ENTRIES)
             {
                 int resp_len = RIP_HEADER_SIZE + (response_entries_count * RIP_ENTRY_SIZE);
@@ -353,12 +353,12 @@ void process_request(udp_layer_t* udp, ripv2_route_table_t* table, ripv2_msg_t* 
             }
             else
             {
-                resp_entry->metric = htonl(16); // No encontrada
+                resp_entry->metric = htonl(16); // Not found
             }
         }
     }
 
-    // Enviar las entradas restantes (si quedaron)
+    // Send the remaining entries (if any are left)
     if (response_entries_count > 0)
     {
         int resp_len = RIP_HEADER_SIZE + (response_entries_count * RIP_ENTRY_SIZE);

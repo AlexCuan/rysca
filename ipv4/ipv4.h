@@ -12,10 +12,10 @@ typedef unsigned char ipv4_addr_t[IPv4_ADDR_SIZE];
 
 typedef struct ipv4_layer
 {
-    eth_iface_t* iface; /* Interfaz de red donde se encuentra esta capa */
-    ipv4_addr_t addr; /* Dirección IP de esta capa */
-    ipv4_addr_t netmask; /* Máscara de red de esta capa */
-    ipv4_route_table_t* routing_table; /* Tabla de rutas */
+    eth_iface_t* iface; /* Network interface this layer sits on */
+    ipv4_addr_t addr; /* IP address of this layer */
+    ipv4_addr_t netmask; /* Network mask of this layer */
+    ipv4_route_table_t* routing_table; /* Route table */
 } ipv4_layer_t;
 
 typedef struct ipv4_header
@@ -32,47 +32,45 @@ typedef struct ipv4_header
     ipv4_addr_t dest_addr;
 } ipv4_header_t;
 
-/* Las estructuras de esta torre se vuelcan tal cual a la red. Hoy el ABI las
-   alinea sin huecos, pero eso no esta garantizado: fallar al compilar es mejor
-   que emitir paquetes mal formados. */
-_Static_assert(sizeof(ipv4_header_t) == 20, "cabecera IPv4 con relleno");
+/* The structures in this stack are written straight onto the wire. Today the
+   ABI lays them out with no gaps, but that is not guaranteed: failing to
+   compile is better than emitting malformed packets. */
+_Static_assert(sizeof(ipv4_header_t) == 20, "padded IPv4 header");
 
-/* Dirección IPv4 a cero "0.0.0.0" */
+/* All-zero IPv4 address "0.0.0.0" */
 extern ipv4_addr_t IPv4_ZERO_ADDR;
 
-/* Logitud máxmima del nombre de un interfaz de red */
+/* Maximum length of a network interface name */
 #define IFACE_NAME_MAX_LENGTH 32
 
 
 /* void ipv4_addr_str ( ipv4_addr_t addr, char* str );
  *
- * DESCRIPCIÓN:
- * Esta función genera una cadena de texto que representa la dirección IPv4
- * indicada.
+ * DESCRIPTION:
+ * This function generates a string representing the given IPv4 address.
  *
- * PARÁMETROS:
- * 'addr': La dirección IP que se quiere representar textualente.
- * 'str': Memoria donde se desea almacenar la cadena de texto generada.
- * Deben reservarse al menos 'IPv4_STR_MAX_LENGTH' bytes.
+ * PARAMETERS:
+ * 'addr': The IP address to represent as text.
+ * 'str': Memory where the generated string is to be stored.
+ * At least 'IPv4_STR_MAX_LENGTH' bytes must be reserved.
  */
 void ipv4_addr_str(ipv4_addr_t addr, char* str);
 
 
 /* int ipv4_str_addr ( char* str, ipv4_addr_t addr );
  *
- * DESCRIPCIÓN:
- * Esta función analiza una cadena de texto en busca de una dirección IPv4.
+ * DESCRIPTION:
+ * This function scans a string looking for an IPv4 address.
  *
- * PARÁMETROS:
- * 'str': La cadena de texto que se desea procesar.
- * 'addr': Memoria donde se almacena la dirección IPv4 encontrada.
+ * PARAMETERS:
+ * 'str': The string to process.
+ * 'addr': Memory where the IPv4 address found is stored.
  *
- * VALOR DEVUELTO:
- * Se devuelve 0 si la cadena de texto representaba una dirección IPv4.
+ * RETURN VALUE:
+ * Returns 0 if the string represented an IPv4 address.
  *
- * ERRORES:
- * La función devuelve -1 si la cadena de texto no representaba una
- * dirección IPv4.
+ * ERRORS:
+ * The function returns -1 if the string did not represent an IPv4 address.
  */
 int ipv4_str_addr(char* str, ipv4_addr_t addr);
 
@@ -80,15 +78,15 @@ int ipv4_str_addr(char* str, ipv4_addr_t addr);
 /*
  * uint16_t ipv4_checksum ( unsigned char * data, int len )
  *
- * DESCRIPCIÓN:
- * Esta función calcula el checksum IP de los datos especificados.
+ * DESCRIPTION:
+ * This function computes the IP checksum of the given data.
  *
- * PARÁMETROS:
- * 'data': Puntero a los datos sobre los que se calcula el checksum.
- * 'len': Longitud en bytes de los datos.
+ * PARAMETERS:
+ * 'data': Pointer to the data the checksum is computed over.
+ * 'len': Length in bytes of the data.
  *
- * VALOR DEVUELTO:
- * El valor del checksum calculado.
+ * RETURN VALUE:
+ * The value of the computed checksum.
  */
 uint16_t ipv4_checksum(unsigned char* data, int len);
 
@@ -99,8 +97,8 @@ uint16_t ipv4_checksum(unsigned char* data, int len);
 int ipv4_send(ipv4_layer_t* layer, ipv4_addr_t dst, uint8_t protocol, unsigned char* payload, int payload_len,
               int corrupt);
 
-/* Devuelve el numero de bytes de payload recibidos, 0 si expiro el temporizador
-   o -1 si se produjo un error. */
+/* Returns the number of payload bytes received, 0 if the timer expired
+   or -1 if an error occurred. */
 int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol, unsigned char buffer[], ipv4_addr_t sender, ipv4_addr_t dest,
               int buf_len, long int timeout);
 int ipv4_close(ipv4_layer_t* layer);

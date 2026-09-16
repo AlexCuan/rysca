@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "ripv2_route_table.h"
 #include <arpa/inet.h>
-#include <string.h> // Necesario para strcmp
+#include <string.h> // Needed for strcmp
 
 #define RX_TIMEOUT_MS 2000
 
@@ -13,12 +13,12 @@ int main(int argc, char* argv[])
     if (argc > 1 && strcmp(argv[argc - 1], "-d") == 0)
     {
         disable_checksum = 1;
-        argc--; // El programa ahora "cree" que hay un argumento menos
+        argc--; // The program now "believes" there is one argument less
     }
 
     if (argc < 4)
     {
-        // Actualizamos el mensaje de uso
+        // Updated usage message
 printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet mask] ... [-d]\n");
         return -1;
     }
@@ -56,10 +56,10 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
 
     ripv2_route_table_t* client_table = ripv2_route_table_create();
 
-    // --- CONSTRUCCIÓN DEL REQUEST ---
+    // --- REQUEST CONSTRUCTION ---
     if (argc == 4)
     {
-        // No hay argumentos extra -> Whole Table Request
+        // No extra arguments -> whole table request
         printf("Generating Whole Table Request...\n");
         msg.entries[0].family = 0;
         msg.entries[0].metric = htonl(16);
@@ -67,7 +67,7 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
     }
     else
     {
-        // Hay argumentos extra -> Specific Request
+        // Extra arguments present -> specific request
         printf("Generating Specific Request...\n");
         int entry_idx = 0;
         for (int i = 4; i < argc; i += 2)
@@ -82,10 +82,10 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
             char* mask_str = argv[i + 1];
 
             msg.entries[entry_idx].family = htons(2); // AF_INET
-            // El resto de campos (tag, next_hop) a 0 por defecto
+            // The remaining fields (tag, next_hop) default to 0
             ipv4_str_addr(sub_str, msg.entries[entry_idx].ip);
             ipv4_str_addr(mask_str, msg.entries[entry_idx].mask);
-            msg.entries[entry_idx].metric = htonl(16); // Se puede poner cualquier cosa, 16 es habitual
+            msg.entries[entry_idx].metric = htonl(16); // Any value works, 16 is customary
 
             entry_idx++;
         }
@@ -95,7 +95,7 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
     udp_send(udp_layer, dest_ip, RIP_PORT, (unsigned char*)&msg, payload_len, 0);
     printf("RIPv2 Request sent to %s (%d bytes)\n", server_ip_str, payload_len);
 
-    // --- RECEPCIÓN ---
+    // --- RECEPTION ---
     printf("\nWaiting for response(s)...\n");
 
     uint16_t src_port;
@@ -109,11 +109,11 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
 
         if (len <= 0)
         {
-            // Timeout o error -> Fin de transmisión
+            // Timeout or error -> end of transmission
             break;
         }
 
-        if (len < RIP_HEADER_SIZE) continue; // Cabecera incompleta
+        if (len < RIP_HEADER_SIZE) continue; // Incomplete header
 
         ripv2_msg_t* response = (ripv2_msg_t*)buffer;
         if (response->version != 2) continue;
@@ -122,21 +122,21 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
         packets_received++;
         printf("Received packet #%d from server.\n", packets_received);
 
-        // REUTILIZACIÓN: Usamos la función compartida para meter datos en la tabla
+        // REUSE: the shared function is what fills the table
         ripv2_process_response(client_table, response, len, src_ip);
     }
 
     if (packets_received > 0)
     {
         printf("\n--- Final Consolidated Routing Table ---\n");
-        ripv2_route_table_print(client_table); // Imprimimos la tabla ordenada y limpia
+        ripv2_route_table_print(client_table); // Print the consolidated table
     }
     else
     {
         printf("Timeout: No response received.\n");
     }
 
-    // Limpieza
+    // Cleanup
     ripv2_route_table_free(client_table);
     udp_close(udp_layer);
     return 0;

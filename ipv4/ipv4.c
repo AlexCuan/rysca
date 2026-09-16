@@ -16,14 +16,13 @@ ipv4_addr_t IPv4_BCAST_ADDR = {255, 255, 255, 255};
 
 /* void ipv4_addr_str ( ipv4_addr_t addr, char* str );
  *
- * DESCRIPCIÓN:
- *   Esta función genera una cadena de texto que representa la dirección IPv4
- *   indicada.
+ * DESCRIPTION:
+ *   This function generates a string representing the given IPv4 address.
  *
- * PARÁMETROS:
- *   'addr': La dirección IP que se quiere representar textualente.
- *    'str': Memoria donde se desea almacenar la cadena de texto generada.
- *           Deben reservarse al menos 'IPv4_STR_MAX_LENGTH' bytes.
+ * PARAMETERS:
+ *   'addr': The IP address to represent as text.
+ *    'str': Memory where the generated string is to be stored.
+ *           At least 'IPv4_STR_MAX_LENGTH' bytes must be reserved.
  */
 void ipv4_addr_str(ipv4_addr_t addr, char* str)
 {
@@ -37,19 +36,18 @@ void ipv4_addr_str(ipv4_addr_t addr, char* str)
 
 /* int ipv4_str_addr ( char* str, ipv4_addr_t addr );
  *
- * DESCRIPCIÓN:
- *   Esta función analiza una cadena de texto en busca de una dirección IPv4.
+ * DESCRIPTION:
+ *   This function scans a string looking for an IPv4 address.
  *
- * PARÁMETROS:
- *    'str': La cadena de texto que se desea procesar.
- *   'addr': Memoria donde se almacena la dirección IPv4 encontrada.
+ * PARAMETERS:
+ *    'str': The string to process.
+ *   'addr': Memory where the IPv4 address found is stored.
  *
- * VALOR DEVUELTO:
- *   Se devuelve 0 si la cadena de texto representaba una dirección IPv4.
+ * RETURN VALUE:
+ *   Returns 0 if the string represented an IPv4 address.
  *
- * ERRORES:
- *   La función devuelve -1 si la cadena de texto no representaba una
- *   dirección IPv4.
+ * ERRORS:
+ *   The function returns -1 if the string did not represent an IPv4 address.
  */
 int ipv4_str_addr(char* str, ipv4_addr_t addr)
 {
@@ -81,15 +79,15 @@ int ipv4_str_addr(char* str, ipv4_addr_t addr)
 /*
  * uint16_t ipv4_checksum ( unsigned char * data, int len )
  *
- * DESCRIPCIÓN:
- *   Esta función calcula el checksum IP de los datos especificados.
+ * DESCRIPTION:
+ *   This function computes the IP checksum of the given data.
  *
- * PARÁMETROS:
- *   'data': Puntero a los datos sobre los que se calcula el checksum.
- *    'len': Longitud en bytes de los datos.
+ * PARAMETERS:
+ *   'data': Pointer to the data the checksum is computed over.
+ *    'len': Length in bytes of the data.
  *
- * VALOR DEVUELTO:
- *   El valor del checksum calculado.
+ * RETURN VALUE:
+ *   The value of the computed checksum.
  */
 uint16_t ipv4_checksum(unsigned char* data, int len)
 {
@@ -117,9 +115,9 @@ uint16_t ipv4_checksum(unsigned char* data, int len)
   return (uint16_t)sum;
 }
 
-/* Indica si 'addr' es una dirección de difusión que esta capa debe tratar como
-   tal: la difusión limitada 255.255.255.255 o la difusión dirigida a nuestra
-   propia subred (parte de host todo a unos). */
+/* Tells whether 'addr' is a broadcast address this layer must treat as such:
+   the limited broadcast 255.255.255.255 or the broadcast directed at our own
+   subnet (host part all ones). */
 static int ipv4_is_broadcast(ipv4_layer_t* layer, ipv4_addr_t addr)
 {
   if (memcmp(addr, IPv4_BCAST_ADDR, IPv4_ADDR_SIZE) == 0)
@@ -130,12 +128,12 @@ static int ipv4_is_broadcast(ipv4_layer_t* layer, ipv4_addr_t addr)
   int i;
   for (i = 0; i < IPv4_ADDR_SIZE; i++)
   {
-    /* Misma subred que nosotros ... */
+    /* Same subnet as ourselves ... */
     if ((addr[i] & layer->netmask[i]) != (layer->addr[i] & layer->netmask[i]))
     {
       return 0;
     }
-    /* ... y parte de host todo a unos. */
+    /* ... and host part all ones. */
     if ((addr[i] | layer->netmask[i]) != 0xFF)
     {
       return 0;
@@ -148,34 +146,34 @@ static int ipv4_is_broadcast(ipv4_layer_t* layer, ipv4_addr_t addr)
 /*
  * int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned char * payload, int payload_len)
  *
- * DESCRIPCIÓN:
- *   Esta función envía un paquete IPv4 al destino especificado.
- *   La función se encarga de construir la cabecera IPv4, calcular el checksum
- *   y enviar el paquete a través de la capa Ethernet.
- *   Busca la ruta adecuada en la tabla de enrutamiento para determinar
- *   la siguiente dirección IP de salto. Luego, resuelve la dirección MAC
- *   del siguiente salto usando ARP antes de enviar el paquete.
+ * DESCRIPTION:
+ *   This function sends an IPv4 packet to the specified destination.
+ *   It builds the IPv4 header, computes the checksum and sends the packet
+ *   through the Ethernet layer.
+ *   It looks up the appropriate route in the routing table to determine the
+ *   next hop IP address. It then resolves the MAC address of that next hop
+ *   using ARP before sending the packet.
  *
- * PARÁMETROS:
- *   'layer': Puntero a la estructura de la capa IPv4 que se utilizará para enviar.
- *     'dst': La dirección IPv4 de destino del paquete.
- * 'protocol': El protocolo de la capa superior de los datos del payload (por ejemplo, TCP, UDP).
- *  'payload': Puntero a los datos del payload que se enviarán.
- *'payload_len': Longitud en bytes de los datos del payload.
+ * PARAMETERS:
+ *   'layer': Pointer to the IPv4 layer structure used to send.
+ *     'dst': Destination IPv4 address of the packet.
+ * 'protocol': Upper layer protocol of the payload data (for example TCP, UDP).
+ *  'payload': Pointer to the payload data to send.
+ *'payload_len': Length in bytes of the payload data.
  *
- * VALOR DEVUELTO:
- *   Devuelve el número de bytes enviados si el envío fue exitoso.
+ * RETURN VALUE:
+ *   Returns the number of bytes sent if the send succeeded.
  *
- * ERRORES:
- *   Devuelve -1 si no se encuentra una ruta al destino, si la resolución
- *   ARP falla, o si ocurre un error en la capa Ethernet.
+ * ERRORS:
+ *   Returns -1 if no route to the destination is found, if ARP resolution
+ *   fails, or if an error occurs in the Ethernet layer.
  */
 int ipv4_send(ipv4_layer_t* layer, ipv4_addr_t dst, uint8_t protocol, unsigned char* payload, int payload_len,
               int corrupt)
 {
   mac_addr_t next_hop_mac;
 
-  /* No hay fragmentación: el datagrama completo debe caber en una trama. */
+  /* No fragmentation: the whole datagram must fit in a single frame. */
   if ((payload == NULL) || (payload_len < 0) ||
       (payload_len > (int)(ETH_MTU - sizeof(ipv4_header_t))))
   {
@@ -186,26 +184,26 @@ int ipv4_send(ipv4_layer_t* layer, ipv4_addr_t dst, uint8_t protocol, unsigned c
   int is_multicast = ((dst[0] & 0xF0) == 0xE0); // 224.0.0.0 a 239.255.255.255
   int is_broadcast = ipv4_is_broadcast(layer, dst);
 
-  // Lógica para determinar la MAC destino
+  // Logic to determine the destination MAC
   if (is_broadcast)
   {
-    // 1. Mapeo Broadcast IPv4 -> Broadcast MAC (FF:FF:FF:FF:FF:FF)
+    // 1. IPv4 broadcast -> MAC broadcast mapping (FF:FF:FF:FF:FF:FF)
     memcpy(next_hop_mac, MAC_BCAST_ADDR, MAC_ADDR_SIZE);
   }
   else if (is_multicast)
   {
-    // 2. Mapeo Multicast IPv4 -> Multicast MAC (01:00:5E:xx:xx:xx)
-    // Se toman los últimos 23 bits de la IP y se añaden al prefijo 01:00:5E
+    // 2. IPv4 multicast -> MAC multicast mapping (01:00:5E:xx:xx:xx)
+    // The low 23 bits of the IP are appended to the 01:00:5E prefix
     next_hop_mac[0] = 0x01;
     next_hop_mac[1] = 0x00;
     next_hop_mac[2] = 0x5E;
-    next_hop_mac[3] = dst[1] & 0x7F; // Pone a 0 el bit más significativo del 2º byte (bit 24 de la IP)
+    next_hop_mac[3] = dst[1] & 0x7F; // Clears the top bit of the 2nd byte (bit 24 of the IP)
     next_hop_mac[4] = dst[2];
     next_hop_mac[5] = dst[3];
   }
   else
   {
-    // 3. Caso Unicast: Comportamiento original (Ruta + ARP)
+    // 3. Unicast case: original behaviour (route + ARP)
     ipv4_route_t* route = ipv4_route_table_lookup(layer->routing_table, dst);
     if (!route)
     {
@@ -222,7 +220,7 @@ int ipv4_send(ipv4_layer_t* layer, ipv4_addr_t dst, uint8_t protocol, unsigned c
       memcpy(next_hop_ip, route->gateway_addr, IPv4_ADDR_SIZE);
     }
 
-    // Resolver MAC usando ARP
+    // Resolve the MAC using ARP
     if (arp_resolve(layer->iface, layer->addr, next_hop_ip, NULL, next_hop_mac) != 0)
     {
       return -1;
@@ -240,9 +238,9 @@ int ipv4_send(ipv4_layer_t* layer, ipv4_addr_t dst, uint8_t protocol, unsigned c
   ip_header->total_length = htons(total_len);
   ip_header->identification = 0;
   ip_header->flags_fragment_offset = 0;
-  ip_header->time_to_live = 64; // TTL por defecto
+  ip_header->time_to_live = 64; // Default TTL
 
-  // Si es multicast RIP, el TTL suele ser 1
+  // For RIP multicast the TTL is normally 1
   if (is_multicast) ip_header->time_to_live = 1;
 
   ip_header->protocol = protocol;
@@ -271,35 +269,33 @@ int ipv4_send(ipv4_layer_t* layer, ipv4_addr_t dst, uint8_t protocol, unsigned c
     return -1;
   }
 
-  /* Devolver los bytes utiles entregados por la capa superior, no el tamaño
-     del datagrama, para que cada capa informe de su propio payload. */
+  /* Return the useful bytes handed over by the upper layer rather than the
+     datagram size, so each layer reports its own payload. */
   return payload_len;
 }
 
 /*
  * ipv4_layer_t * ipv4_open(char * file_conf, char * file_conf_route)
  *
- * DESCRIPCIÓN:
- *   Esta función inicializa la capa IPv4.
- *   Crea y configura una estructura ipv4_layer_t, que incluye la creación
- *   de una tabla de enrutamiento, la lectura de la configuración de red
- *   (dirección IP, máscara de subred) desde un archivo y la carga de la
- *   tabla de enrutamiento desde otro archivo. Finalmente, inicializa la
- *   capa Ethernet subyacente.
+ * DESCRIPTION:
+ *   This function initialises the IPv4 layer.
+ *   It creates and configures an ipv4_layer_t structure, which includes
+ *   creating a routing table, reading the network configuration (IP address,
+ *   subnet mask) from a file and loading the routing table from another file.
+ *   Finally it initialises the underlying Ethernet layer.
  *
- * PARÁMETROS:
- *   'file_conf': Ruta al archivo de configuración que contiene la
- *                interfaz, la dirección IPv4 y la máscara de subred.
- *   'file_conf_route': Ruta al archivo que contiene la tabla de enrutamiento.
+ * PARAMETERS:
+ *   'file_conf': Path to the configuration file containing the interface,
+ *                the IPv4 address and the subnet mask.
+ *   'file_conf_route': Path to the file containing the routing table.
  *
- * VALOR DEVUELTO:
- *   Devuelve un puntero a la estructura ipv4_layer_t inicializada si
- *   la operación fue exitosa.
+ * RETURN VALUE:
+ *   Returns a pointer to the initialised ipv4_layer_t structure if the
+ *   operation succeeded.
  *
- * ERRORES:
- *   Devuelve NULL si ocurre un error durante la asignación de memoria,
- *   la lectura de los archivos de configuración o la inicialización
- *   de la capa Ethernet.
+ * ERRORS:
+ *   Returns NULL if an error occurs during memory allocation, while reading
+ *   the configuration files or while initialising the Ethernet layer.
  */
 ipv4_layer_t* ipv4_open(char* file_conf, char* file_conf_route)
 {
@@ -310,7 +306,7 @@ ipv4_layer_t* ipv4_open(char* file_conf, char* file_conf_route)
     return NULL;
   }
 
-  //Crear routing_table
+  // Create the routing table
   layer->routing_table = ipv4_route_table_create();
   if (!layer->routing_table)
   {
@@ -318,7 +314,7 @@ ipv4_layer_t* ipv4_open(char* file_conf, char* file_conf_route)
     return NULL;
   }
 
-  // Leer direcciones y subred de file_conf
+  // Read the addresses and subnet from file_conf
   char ifname[IFACE_NAME_MAX_LENGTH];
   if (ipv4_config_read(file_conf, ifname, layer->addr, layer->netmask) != 0)
   {
@@ -328,7 +324,7 @@ ipv4_layer_t* ipv4_open(char* file_conf, char* file_conf_route)
     return NULL;
   }
 
-  // Leer tabla de reenvío IP de file_conf_route
+  // Read the IP forwarding table from file_conf_route
   if (ipv4_route_table_read(file_conf_route, layer->routing_table) < 0)
   {
     fprintf(stderr, "Error reading IPv4 route table file %s\n", file_conf_route);
@@ -337,7 +333,7 @@ ipv4_layer_t* ipv4_open(char* file_conf, char* file_conf_route)
     return NULL;
   }
 
-  // Inicializar capa Ethernet con eth_open()
+  // Initialise the Ethernet layer with eth_open()
   layer->iface = eth_open(ifname);
   if (!layer->iface)
   {
@@ -353,19 +349,19 @@ ipv4_layer_t* ipv4_open(char* file_conf, char* file_conf_route)
 /*
  * int ipv4_close(ipv4_layer_t * layer)
  *
- * DESCRIPCIÓN:
- *   Esta función libera los recursos asociados a una capa IPv4.
- *   Cierra la interfaz Ethernet, libera la tabla de enrutamiento y
- *   libera la memoria de la estructura ipv4_layer_t.
+ * DESCRIPTION:
+ *   This function releases the resources associated with an IPv4 layer.
+ *   It closes the Ethernet interface, frees the routing table and frees the
+ *   memory of the ipv4_layer_t structure.
  *
- * PARÁMETROS:
- *   'layer': Puntero a la estructura de la capa IPv4 a cerrar.
+ * PARAMETERS:
+ *   'layer': Pointer to the IPv4 layer structure to close.
  *
- * VALOR DEVUELTO:
- *   Devuelve 0 si la operación fue exitosa.
+ * RETURN VALUE:
+ *   Returns 0 if the operation succeeded.
  *
- * ERRORES:
- *   Devuelve -1 si el puntero 'layer' es NULL.
+ * ERRORS:
+ *   Returns -1 if the 'layer' pointer is NULL.
  */
 int ipv4_close(ipv4_layer_t* layer)
 {
@@ -405,28 +401,28 @@ void print_hex(unsigned char* data, int len)
 /*
  * int ipv4_recv(ipv4_layer_t * layer, uint8_t protocol, unsigned char buffer[], ipv4_addr_t sender, int buf_len, long int timeout)
  *
- * DESCRIPCIÓN:
- *   Esta función se encarga de recibir paquetes IPv4. Espera la llegada de
- *   un paquete IPv4 en la interfaz de red asociada a la capa IPv4.
- *   Realiza varias validaciones sobre el paquete recibido, incluyendo la
- *   versión IP, la longitud de la cabecera, el checksum y la dirección de
- *   destino. Si el paquete es válido y está destinado a esta interfaz y
- *   protocolo, copia el payload a un buffer proporcionado por el usuario.
+ * DESCRIPTION:
+ *   This function receives IPv4 packets. It waits for an IPv4 packet to arrive
+ *   on the network interface associated with the IPv4 layer.
+ *   It performs several validations on the received packet, including the IP
+ *   version, the header length, the checksum and the destination address. If
+ *   the packet is valid and addressed to this interface and protocol, it
+ *   copies the payload into a buffer supplied by the caller.
  *
- * PARÁMETROS:
- *   'layer': Puntero a la estructura de la capa IPv4 donde se recibirá el paquete.
- * 'protocol': El protocolo de la capa superior esperado (por ejemplo, TCP, UDP).
- *  'buffer': Buffer donde se copiará el payload del paquete recibido.
- *  'sender': Array donde se almacenará la dirección IPv4 del remitente del paquete.
- * 'buf_len': Longitud máxima del buffer proporcionado para el payload.
- * 'timeout': Tiempo máximo en milisegundos que la función esperará por un paquete.
+ * PARAMETERS:
+ *   'layer': Pointer to the IPv4 layer structure the packet is received on.
+ * 'protocol': Expected upper layer protocol (for example TCP, UDP).
+ *  'buffer': Buffer where the payload of the received packet is copied.
+ *  'sender': Array where the IPv4 address of the sender is stored.
+ * 'buf_len': Maximum length of the buffer supplied for the payload.
+ * 'timeout': Maximum time in milliseconds the function waits for a packet.
  *
- * VALOR DEVUELTO:
- *   Devuelve la longitud del payload recibido si el paquete fue procesado
- *   exitosamente.
+ * RETURN VALUE:
+ *   Returns the length of the received payload if the packet was processed
+ *   successfully.
  *
- * ERRORES:
- *   Devuelve -1 si ocurre un error en la capa Ethernet
+ * ERRORS:
+ *   Returns -1 if an error occurs in the Ethernet layer.
  */
 int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
               unsigned char buffer[], ipv4_addr_t sender, ipv4_addr_t dest,
@@ -436,9 +432,9 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
   unsigned char eth_buffer[ETH_MTU];
   int payload_len;
 
-  /* El temporizador cubre todo el bucle: descartar una trama no debe regalar
-     un timeout completo, o la espera se prolonga indefinidamente mientras
-     sigan llegando paquetes que no nos sirven. */
+  /* The timer spans the whole loop: discarding a frame must not grant a fresh
+     full timeout, or the wait stretches on indefinitely as long as packets we
+     cannot use keep arriving. */
   timerms_t timer;
   timerms_reset(&timer, timeout);
 
@@ -523,10 +519,10 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
       continue;
     }
 
-    /* 'total_length' llega de la red: sin acotarlo contra los bytes que ha
-       entregado Ethernet se copian datos que nunca se recibieron, leyendo
-       fuera de 'eth_buffer' cuando la cabecera trae opciones. El relleno
-       Ethernet hace que payload_len pueda ser mayor, pero nunca menor. */
+    /* 'total_length' comes from the network: without bounding it against the
+       bytes Ethernet delivered, data that was never received gets copied,
+       reading past 'eth_buffer' when the header carries options. Ethernet
+       padding can make payload_len larger, but never smaller. */
     const int ip_total_len = ntohs(ip_header->total_length);
     if ((ip_total_len < (int)header_len) || (ip_total_len > payload_len))
     {
@@ -545,7 +541,7 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
     memcpy(sender, ip_header->src_addr, IPv4_ADDR_SIZE);
 
     // Copy payload to user buffer
-    //Ternario: (condición) ? (valor_si_verdadero) : (valor_si_falso);
+    // Ternary: (condition) ? (value_if_true) : (value_if_false);
     // Prevent buffer overflow
     const int len_to_copy = (ip_payload_len > buf_len) ? buf_len : ip_payload_len;
     unsigned char* payload = eth_buffer + header_len;

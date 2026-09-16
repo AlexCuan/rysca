@@ -26,7 +26,7 @@ udp_layer_t* udp_open(char* config_file, char* route_table, uint16_t port)
 
     if (port == 0)
     {
-        // Generar puerto aleatorio (Rango efímero IANA)
+        // Generate a random port (IANA ephemeral range)
         layer->local_port = (uint16_t)rng_get_rand_in_range(49152, 65535);
     }
     else
@@ -117,7 +117,7 @@ int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsi
     }
     udp_header_t* header = (udp_header_t*)packet;
 
-    // USAR PUERTO LOCAL ALMACENADO
+    // Use the stored local port
     header->src_port = htons(layer->local_port);
     header->dest_port = htons(dest_port);
     header->length = htons(sizeof(udp_header_t) + payload_len);
@@ -156,11 +156,11 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
 {
     unsigned char* packet = malloc(buffer_len);
     if (!packet) return -1;
-    ipv4_addr_t dest_addr_pkt; // Aquí se guardará la IP destino (Unicast o Multicast)
+    ipv4_addr_t dest_addr_pkt; // Holds the destination IP (unicast or multicast)
 
     while (1)
     {
-        // ipv4_recv rellenará dest_addr_pkt con la IP destino del paquete recibido
+        // ipv4_recv fills dest_addr_pkt with the destination IP of the packet
         int received_len = ipv4_recv(layer->ipv4_layer, IP_PROTOCOL_UDP, packet, src_addr, dest_addr_pkt, buffer_len,
                                      timeout);
 
@@ -176,20 +176,20 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
         }
         if (received_len < (int)sizeof(udp_header_t))
         {
-            continue; // Paquete muy corto
+            continue; // Packet too short
         }
 
         udp_header_t* header = (udp_header_t*)packet;
         uint16_t dest_port_pkt = ntohs(header->dest_port);
 
-        // Filtrar por puerto
+        // Filter by port
         if (dest_port_pkt != layer->local_port)
         {
             continue;
         }
 
-        /* La longitud declarada manda: IP puede entregar bytes de relleno y una
-           cabecera que mienta descuadraria el checksum respecto al payload. */
+        /* The declared length wins: IP may hand over padding bytes, and a header
+           that lies would put the checksum out of step with the payload. */
         const int udp_len = ntohs(header->length);
         if ((udp_len < (int)sizeof(udp_header_t)) || (udp_len > received_len))
         {
@@ -201,7 +201,7 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
         *src_port = ntohs(header->src_port);
         const int payload_len = udp_len - (int)sizeof(udp_header_t);
 
-        // --- VERIFICACIÓN DE CHECKSUM ---
+        // --- CHECKSUM VERIFICATION ---
         if (layer->check_checksum)
         {
             uint16_t received_checksum = ntohs(header->checksum);
@@ -209,7 +209,7 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
             if (received_checksum != 0)
             {
                 header->checksum = 0;
-                // Recuerda usar dest_addr_pkt para que RIP multicast funcione
+                // dest_addr_pkt must be used so that RIP multicast works
                 uint16_t calculated_checksum = udp_checksum(src_addr, dest_addr_pkt, header,
                                                             packet + sizeof(udp_header_t), payload_len);
                 if (calculated_checksum == 0) calculated_checksum = 0xFFFF;
@@ -219,12 +219,12 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
                 {
                     printf("[UDP DEBUG] Error: UDP Checksum mismatch. Recv: 0x%04x, Calc: 0x%04x\n", received_checksum,
                            calculated_checksum);
-                    continue; // DESCARTAR
+                    continue; // DISCARD
                 }
             }
         }
 
-        // Si llegamos aquí, el checksum es válido o era 0.
+        // Reaching here means the checksum is valid or was 0.
         if (payload_len > 0)
         {
             memcpy(buffer, packet + sizeof(udp_header_t), payload_len);

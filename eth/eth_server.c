@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
   printf("Servidor Ethernet escuchando en %s (%s). Tipo: 0x%04x\n",
          iface_name, server_addr_str, eth_type);
 
-  // --- BUCLE INFINITO ---
+  // --- MAIN LOOP ---
   while (1)
   {
     unsigned char buffer[ETH_MTU];
@@ -60,9 +60,9 @@ int main(int argc, char* argv[])
     mac_addr_str(src_addr, src_addr_str);
 
     printf("\n[RECV] %d bytes de %s\n", payload_len, src_addr_str);
-    // print_pkt(buffer, payload_len, 0); // Descomentar para ver contenido en hex
+    // print_pkt(buffer, payload_len, 0); // Uncomment to dump the contents in hex
 
-    /* ECHO: Enviar la misma trama de vuelta */
+    /* ECHO: send the same frame back */
     printf("[SEND] Enviando Echo a %s...\n", src_addr_str);
 
     int len = eth_send(eth_iface, src_addr, eth_type, buffer, payload_len);

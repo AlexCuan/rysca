@@ -1,19 +1,19 @@
 #ifndef _RIPV2_ROUTE_TABLE_H
 #define _RIPV2_ROUTE_TABLE_H
 
-#include <time.h> // Necesario para time_t
+#include <time.h> // Needed for time_t
 #include "../ipv4/ipv4.h"
 
 typedef struct ripv2_route
 {
-  ipv4_addr_t subnet; // En el .c lo llamas 'subnet', en el ipv4 original era 'subnet_addr'
-  ipv4_addr_t mask; // En el .c lo llamas 'mask', en el ipv4 original era 'subnet_mask'
-  ipv4_addr_t next_hop; // En el .c usas 'next_hop', en el .h tenías 'gateway_addr'
-  uint32_t metric; // Métrica RIP
-  uint16_t route_tag; // Etiqueta de ruta (RFC 2453)
-  time_t last_updated; // Para controlar el timeout (180s)
-  int is_garbage; // Flag para garbage collection
-  int is_static; // Ruta leida de fichero: no la caducan los temporizadores
+  ipv4_addr_t subnet; // Called 'subnet_addr' in the original IPv4 table
+  ipv4_addr_t mask; // Called 'subnet_mask' in the original IPv4 table
+  ipv4_addr_t next_hop; // Called 'gateway_addr' in the original IPv4 table
+  uint32_t metric; // RIP metric
+  uint16_t route_tag; // Route tag (RFC 2453)
+  time_t last_updated; // Used to track the timeout (180s)
+  int is_garbage; // Garbage collection flag
+  int is_static; // Route read from file: not expired by the timers
 } ripv2_route_t;
 
 

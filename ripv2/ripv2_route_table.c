@@ -7,15 +7,15 @@
 #include <time.h>
 #include <arpa/inet.h>
 
-/* Estructura opaca para la tabla de rutas RIPv2 */
+/* Opaque structure for the RIPv2 route table */
 struct ripv2_route_table
 {
   ripv2_route_t* routes[ripv2_ROUTE_TABLE_SIZE];
 };
 
 /* ripv2_route_t * ripv2_route_create * ( ipv4_addr_t subnet, ipv4_addr_t mask, ipv4_addr_t next_hop, uint32_t metric )
- * * DESCRIPCIÓN:
- * Crea una ruta RIPv2 e inicializa sus temporizadores.
+ * * DESCRIPTION:
+ * Creates a RIPv2 route and initialises its timers.
  */
 ripv2_route_t* ripv2_route_create
 (ipv4_addr_t subnet, ipv4_addr_t mask, ipv4_addr_t next_hop, uint32_t metric)
@@ -29,7 +29,7 @@ ripv2_route_t* ripv2_route_create
     memcpy(route->next_hop, next_hop, IPv4_ADDR_SIZE);
     route->metric = metric;
     route->route_tag = 0;
-    route->last_updated = time(NULL); // Inicializar timestamp actual
+    route->last_updated = time(NULL); // Initialise with the current timestamp
     route->is_garbage = 0;
     route->is_static = 0;
   }
@@ -47,7 +47,7 @@ void ripv2_route_free(ripv2_route_t* route)
 }
 
 /* void ripv2_route_print ( ripv2_route_t * route )
- * Imprime el estado de la ruta RIP, incluyendo temporizadores.
+ * Prints the state of the RIP route, including its timers.
  */
 void ripv2_route_print(ripv2_route_t* route)
 {
@@ -61,7 +61,7 @@ void ripv2_route_print(ripv2_route_t* route)
     ipv4_addr_str(route->mask, mask_str);
     ipv4_addr_str(route->next_hop, nh_str);
 
-    // Calcular segundos desde la última actualización
+    // Seconds elapsed since the last update
     double seconds_since_update = difftime(time(NULL), route->last_updated);
 
     printf("%s/%s -> Nexthop: %s | Metric: %2d | Age: %3.0fs | Garbage: %s\n",
@@ -163,8 +163,8 @@ int ripv2_route_table_size(ripv2_route_table_t* table)
 }
 
 /* ripv2_route_t * ripv2_route_table_lookup ( ... )
- * IMPORTANTE: Para RIP, esta función busca coincidencia EXACTA de subnet y mask.
- * Se usa para saber si una ruta recibida ya existe y actualizarla.
+ * IMPORTANT: for RIP this function looks for an EXACT match of subnet and mask.
+ * It is used to tell whether a received route already exists so it can be updated.
  */
 ripv2_route_t* ripv2_route_table_lookup(ripv2_route_table_t* table,
                                         ipv4_addr_t subnet, ipv4_addr_t mask)
@@ -177,16 +177,16 @@ ripv2_route_t* ripv2_route_table_lookup(ripv2_route_table_t* table,
       ripv2_route_t* route = table->routes[i];
       if (route != NULL)
       {
-        // Comparación de memoria exacta para Subred y Máscara
+        // Exact memory comparison of subnet and mask
         if (memcmp(route->subnet, subnet, IPv4_ADDR_SIZE) == 0 &&
           memcmp(route->mask, mask, IPv4_ADDR_SIZE) == 0)
         {
-          return route; // Encontrado
+          return route; // Found
         }
       }
     }
   }
-  return NULL; // No encontrado
+  return NULL; // Not found
 }
 
 /* void ripv2_route_table_print ( ripv2_route_table_t * table ) */
@@ -207,7 +207,7 @@ void ripv2_route_table_print(ripv2_route_table_t* table)
   }
 }
 
-/* Helpers para lectura de fichero (simplificado) */
+/* Helpers for reading the file (simplified) */
 int ripv2_route_table_read(char* filename, ripv2_route_table_t* table)
 {
   FILE* file = fopen(filename, "r");
@@ -222,18 +222,18 @@ int ripv2_route_table_read(char* filename, ripv2_route_table_t* table)
 
   while (fgets(line, sizeof(line), file))
   {
-    // Ignorar líneas vacías o comentarios (#)
+    // Ignore empty lines and comments (#)
     if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
 
     char subnet_str[32], mask_str[32], nh_str[32];
     int metric;
 
-    // Parsear la línea
+    // Parse the line
     if (sscanf(line, "%s %s %s %d", subnet_str, mask_str, nh_str, &metric) == 4)
     {
       ipv4_addr_t subnet, mask, nh;
 
-      // Convertir strings a ipv4_addr_t
+      // Convert the strings to ipv4_addr_t
       if (ipv4_str_addr(subnet_str, subnet) == 0 &&
         ipv4_str_addr(mask_str, mask) == 0 &&
         ipv4_str_addr(nh_str, nh) == 0)
@@ -241,8 +241,8 @@ int ripv2_route_table_read(char* filename, ripv2_route_table_t* table)
         ripv2_route_t* new_route = ripv2_route_create(subnet, mask, nh, (uint32_t)metric);
         if (new_route)
         {
-          /* Ningun Response las refresca, asi que sin esta marca los
-             temporizadores las envenenan a los 180s y las borran a los 300s. */
+          /* No Response ever refreshes them, so without this flag the timers
+             poison them after 180s and delete them after 300s. */
           new_route->is_static = 1;
 
           if (ripv2_route_table_add(table, new_route) != -1)
@@ -251,7 +251,7 @@ int ripv2_route_table_read(char* filename, ripv2_route_table_t* table)
           }
           else
           {
-            // Si falla al añadir (ej. tabla llena), liberar memoria
+            // If adding fails (e.g. table full), release the memory
             ripv2_route_free(new_route);
           }
         }

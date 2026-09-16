@@ -30,16 +30,16 @@ typedef struct
     ripv2_entry_t entries[RIP_MAX_ENTRIES];
 } ripv2_msg_t;
 
-_Static_assert(sizeof(ripv2_entry_t) == RIP_ENTRY_SIZE, "entrada RIPv2 con relleno");
+_Static_assert(sizeof(ripv2_entry_t) == RIP_ENTRY_SIZE, "padded RIPv2 entry");
 _Static_assert(sizeof(ripv2_msg_t) == RIP_HEADER_SIZE + RIP_MAX_ENTRIES * RIP_ENTRY_SIZE,
-               "mensaje RIPv2 con relleno");
+               "padded RIPv2 message");
 
-// Forward declaration para no incluir el .h de la tabla y causar ciclos
+// Forward declaration to avoid including the table header and causing cycles
 struct ripv2_route_table;
 
-/* Procesa un Response RIPv2. 'msg_len' son los bytes realmente recibidos: sin
-   el las entradas no escritas por el emisor se leerian del contenido anterior
-   del buffer. Devuelve 1 si la tabla cambio. */
+/* Processes a RIPv2 Response. 'msg_len' is the number of bytes actually
+   received: without it, the entries the sender did not write would be read from
+   the previous contents of the buffer. Returns 1 if the table changed. */
 int ripv2_process_response(struct ripv2_route_table* table, ripv2_msg_t* msg, int msg_len, ipv4_addr_t src_ip);
 
 #endif //TCP_IP_STACK_RIPV2_H

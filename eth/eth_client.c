@@ -29,39 +29,39 @@ int main(int argc, char* argv[])
         exit(-1);
     }
 
-    // --- PREPARACIÓN DEL PAYLOAD ---
+    // --- PAYLOAD PREPARATION ---
     unsigned char payload[ETH_MTU];
     int payload_len = DEFAULT_PAYLOAD_LENGTH;
     int is_text_msg = 0;
 
     if (argc == 5)
     {
-        // Intentamos ver si es un número (longitud) o texto
+        // Work out whether it is a number (length) or text
         char* endptr;
         long val = strtol(argv[4], &endptr, 10);
 
         if (*endptr == '\0')
         {
-            // Es un número puro: usar como longitud
+            // Plain number: use it as the length
             payload_len = (int)val;
             if (payload_len > ETH_MTU) payload_len = ETH_MTU;
         }
         else
         {
-            // Es texto: usar como mensaje
+            // Text: use it as the message
             strncpy((char*)payload, argv[4], ETH_MTU);
             payload_len = strlen(argv[4]);
             is_text_msg = 1;
         }
     }
 
-    // Si no es texto, rellenar con patrón numérico
+    // If it is not text, fill with a numeric pattern
     if (!is_text_msg)
     {
         for (int i = 0; i < payload_len; i++) payload[i] = (unsigned char)(i % 256);
     }
 
-    // --- ABRIR INTERFAZ ---
+    // --- OPEN THE INTERFACE ---
     eth_iface_t* eth_iface = eth_open(iface_name);
     if (!eth_iface)
     {
@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
         exit(-1);
     }
 
-    // --- ENVIAR ---
+    // --- SEND ---
     printf("Enviando %d bytes a %s (Tipo 0x%04x)...\n", payload_len, server_addr_str, eth_type);
     if (is_text_msg) printf("Mensaje: \"%s\"\n", payload);
 
@@ -79,7 +79,7 @@ int main(int argc, char* argv[])
         exit(-1);
     }
 
-    // --- RECIBIR (Esperar respuesta) ---
+    // --- RECEIVE (wait for the reply) ---
     printf("Esperando respuesta (Timeout 2s)...\n");
 
     unsigned char buffer[ETH_MTU];

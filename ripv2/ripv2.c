@@ -6,16 +6,16 @@
 #include <arpa/inet.h>
 
 /*
- * Procesa un mensaje RIP Response y actualiza la tabla de rutas.
- * Devuelve 1 si hubo cambios en la tabla, 0 si no.
+ * Processes a RIP Response message and updates the route table.
+ * Returns 1 if the table changed, 0 otherwise.
  */
 int ripv2_process_response(ripv2_route_table_t* table, ripv2_msg_t* msg, int msg_len, ipv4_addr_t src_ip)
 {
     int changes = 0;
 
-    /* Recorrer solo las entradas que venian en el mensaje. El buffer de
-       recepcion se reutiliza entre paquetes, asi que todo lo que hay mas alla
-       pertenece al Response anterior. */
+    /* Walk only the entries the message actually carried. The receive buffer
+       is reused between packets, so anything beyond them belongs to the
+       previous Response. */
     int num_entries = (msg_len - RIP_HEADER_SIZE) / RIP_ENTRY_SIZE;
     if (num_entries < 0) num_entries = 0;
     if (num_entries > RIP_MAX_ENTRIES) num_entries = RIP_MAX_ENTRIES;
@@ -26,9 +26,9 @@ int ripv2_process_response(ripv2_route_table_t* table, ripv2_msg_t* msg, int msg
 
         if (ntohs(entry->family) != 2) continue;
 
-        /* RFC 2453 3.9.2: descartar metricas fuera de [1, 16]. Sumar 1 a un
-           valor arbitrario desborda el uint32 y produce metricas de 0, que
-           ganan a cualquier ruta real y nunca caducan. */
+        /* RFC 2453 3.9.2: discard metrics outside [1, 16]. Adding 1 to an
+           arbitrary value overflows the uint32 and yields metrics of 0, which
+           beat any real route and never expire. */
         uint32_t received_metric = ntohl(entry->metric);
         if ((received_metric < 1) || (received_metric > 16)) continue;
 

@@ -20,7 +20,7 @@ int main(int argc, char* argv[])
     char* config_file = argv[1];
     char* route_table_file = argv[2];
 
-    // 1. Inicializar capa IPv4
+    // 1. Initialise the IPv4 layer
     ipv4_layer_t* layer = ipv4_open(config_file, route_table_file);
     if (!layer)
     {
@@ -40,7 +40,7 @@ int main(int argc, char* argv[])
 
         if (len == 0)
         {
-            continue; // Timeout: seguir escuchando
+            continue; // Timeout: keep listening
         }
 
         if (len > 0)

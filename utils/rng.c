@@ -7,9 +7,9 @@ static int rng_initialized = 0;
 
 void rng_init()
 {
-    /* Idempotente: udp_open y los main() llaman aqui, y volver a sembrar con
-       time(NULL) dentro del mismo segundo reinicia la secuencia. El PID separa
-       ademas a dos procesos arrancados a la vez. */
+    /* Idempotent: udp_open and the main() functions both call here, and
+       reseeding with time(NULL) within the same second restarts the sequence.
+       The PID also separates two processes started at the same time. */
     if (!rng_initialized)
     {
         srand((unsigned int)time(NULL) ^ (unsigned int)getpid());

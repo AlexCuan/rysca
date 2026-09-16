@@ -3,88 +3,85 @@
 
 #include <stdint.h>
 
-/* Tamaño en bytes de las direcciones MAC (48 bits == 6 bytes) */
+/* Size in bytes of a MAC address (48 bits == 6 bytes) */
 #define MAC_ADDR_SIZE 6
 
-/* Definición del tipo para almacenar direcciones MAC */
+/* Type used to store MAC addresses */
 typedef unsigned char mac_addr_t[MAC_ADDR_SIZE];
 
 #define ETH_TYPE_IPV4 0x0800
 #define ETH_MIN_PAYLOAD 46
 
-/* Dirección MAC de difusión: "FF:FF:FF:FF:FF:FF" */
+/* Broadcast MAC address: "FF:FF:FF:FF:FF:FF" */
 extern mac_addr_t MAC_BCAST_ADDR;
 
-/* Longitud en bytes de una cadena de texto que representa una dirección MAC */
+/* Length in bytes of a string representing a MAC address */
 #define MAC_STR_LENGTH 18
 
-/* Maximum Transmission Unit (MTU) de la tramas Ethernet. */
+/* Maximum Transmission Unit (MTU) of Ethernet frames. */
 #define ETH_MTU 1500
 
-/* Manejador de un interfaz ethernet. Esta es una estructura opaca que no debe
-   ser accedida directamente, sino a través de las funciones de esta librería. */
+/* Handle for an Ethernet interface. This is an opaque structure that must not
+   be accessed directly, but through the functions of this library. */
 typedef struct eth_iface eth_iface_t;
 
 
 /* eth_iface_t * eth_open ( char* ifname );
  *
- * DESCRIPCIÓN:
- *   Esta función inicializa la interfaz Ethernet especificada para que pueda
- *   ser utilizada por las restantes funciones de la librería.
+ * DESCRIPTION:
+ *   This function initialises the specified Ethernet interface so that it can
+ *   be used by the remaining functions of the library.
  *
- *   La memoria del manejador de interfaz devuelto debe ser liberada con la
- *   función 'eth_close()'.
+ *   The memory of the returned interface handle must be released with the
+ *   'eth_close()' function.
  *
- * PARÁMETROS:
- *   'ifname': Cadena de texto con el nombre de la interfaz Ethernet que se
- *             desea inicializar.
+ * PARAMETERS:
+ *   'ifname': String with the name of the Ethernet interface to initialise.
  *
- * VALOR DEVUELTO:
- *   Manejador de la interfaz Ethernet inicializada.
+ * RETURN VALUE:
+ *   Handle of the initialised Ethernet interface.
  *
- *   Dicho manejador es un puntero a una estructura opaca que no debe ser
- *   accedida directamente, en su lugar use las funciones de la librería.
+ *   That handle is a pointer to an opaque structure that must not be accessed
+ *   directly; use the functions of the library instead.
  *
- * ERRORES:
- *   La función devuelve 'NULL' si se ha producido algún error.
+ * ERRORS:
+ *   The function returns 'NULL' if an error occurred.
  */
 eth_iface_t* eth_open(char* ifname);
 
 
 /* char * eth_getname ( eth_iface_t * iface );
  *
- * DESCRIPCIÓN:
- *   Esta función devuelve el nombre de la interfaz Ethernet especificada.
+ * DESCRIPTION:
+ *   This function returns the name of the specified Ethernet interface.
  *
- * PARÁMETROS:
- *   'iface': Manejador de la interfaz ethernet de la que se quiere obtener su
- *            nombre.
- *            La interfaz debe haber sido inicializada con 'eth_open()'
- *            previamente.
+ * PARAMETERS:
+ *   'iface': Handle of the Ethernet interface whose name is requested.
+ *            The interface must have been initialised with 'eth_open()'
+ *            beforehand.
  *
- * VALOR DEVUELTO:
- *   Cadena de texto con el nombre de la interfaz.
+ * RETURN VALUE:
+ *   String with the name of the interface.
  *
- * ERRORES:
- *   La función devuelve 'NULL' si la interfaz no ha sido inicializada
- *   correctamente.
+ * ERRORS:
+ *   The function returns 'NULL' if the interface was not initialised
+ *   correctly.
  */
 char* eth_getname(eth_iface_t* iface);
 
 
 /* void eth_getaddr ( eth_iface_t * iface, mac_addr_t addr );
  *
- * DESCRIPCIÓN:
- *   Esta función permite obtener la dirección MAC de la interfaz Ethernet
- *   especificada.
+ * DESCRIPTION:
+ *   This function obtains the MAC address of the specified Ethernet
+ *   interface.
  *
- * PARÁMETROS:
- *   'iface': Manejador de la interfaz Ethernet de la que se quiere obtener su
- *            dirección.
- *            La interfaz debe haber sido inicializada con 'eth_open()'
- *            previamente.
- *    'addr': Array donde se copiará la dirección MAC de la interfaz Ethernet.
- *            Las direcciones MAC ocupan 'MAC_ADDR_SIZE' bytes.
+ * PARAMETERS:
+ *   'iface': Handle of the Ethernet interface whose address is requested.
+ *            The interface must have been initialised with 'eth_open()'
+ *            beforehand.
+ *    'addr': Array where the MAC address of the Ethernet interface will be
+ *            copied. MAC addresses take up 'MAC_ADDR_SIZE' bytes.
  */
 void eth_getaddr(eth_iface_t* iface, mac_addr_t addr);
 
@@ -93,26 +90,24 @@ void eth_getaddr(eth_iface_t* iface, mac_addr_t addr);
  * ( eth_iface_t * iface,
  *   mac_addr_t dst, uint16_t type, unsigned char * data, int data_len );
  *
- * DESCRIPCIÓN:
- *   Esta función permite enviar una trama Ethernet a través de la interfaz
- *   indicada.
+ * DESCRIPTION:
+ *   This function sends an Ethernet frame through the given interface.
  *
- * PARÁMETROS:
- *       'iface': Manejador de la interfaz Ethernet por la que se quiere
- *                enviar el paquete.
- *                La interfaz debe haber sido inicializada con 'eth_open()'
- *                previamente.
- *         'dst': Dirección MAC del equipo destino.
- *        'type': Valor del campo 'Tipo' de la trama Ethernet a enviar.
- *     'payload': Puntero a los datos que se quieren enviar en la trama
- *                Ethernet.
- * 'payload_len': Longitud en bytes de los datos a enviar.
+ * PARAMETERS:
+ *       'iface': Handle of the Ethernet interface the packet is to be sent
+ *                through.
+ *                The interface must have been initialised with 'eth_open()'
+ *                beforehand.
+ *         'dst': MAC address of the destination host.
+ *        'type': Value of the 'Type' field of the Ethernet frame to send.
+ *     'payload': Pointer to the data to send in the Ethernet frame.
+ * 'payload_len': Length in bytes of the data to send.
  *
- * VALOR DEVUELTO:
- *   El número de bytes de datos que han podido ser enviados.
+ * RETURN VALUE:
+ *   The number of data bytes that could be sent.
  *
- * ERRORES:
- *   La función devuelve '-1' si se ha producido algún error.
+ * ERRORS:
+ *   The function returns '-1' if an error occurred.
  */
 int eth_send
 (eth_iface_t* iface,
@@ -123,42 +118,41 @@ int eth_send
  * ( eth_iface_t * iface,
  *   mac_addr_t src, uint16_t type, unsigned char buffer[], long int timeout );
  *
- * DESCRIPCIÓN:
- *   Esta función permite obtener el siguiente paquete recibido por la
- *   interfaz Ethernet indicada. La operación puede esperar indefinidamente o
- *   un tiempo limitando dependiento del parámetro 'timeout'.
+ * DESCRIPTION:
+ *   This function obtains the next packet received by the given Ethernet
+ *   interface. The operation may wait indefinitely or for a limited time
+ *   depending on the 'timeout' parameter.
  *
- *   Esta función sólo permite recibir paquetes de una única interfaz. Si desea
- *   escuchar varias interfaces Ethernet simultaneamente, utilice la función
- *   'eth_poll()'.
+ *   This function can only receive packets from a single interface. To listen
+ *   on several Ethernet interfaces simultaneously, use the 'eth_poll()'
+ *   function.
  *
- * PARÁMETROS:
- *    'iface': Manejador de la interfaz Ethernet por la que se desea recibir
- *             un paquete.
- *             La interfaz debe haber sido inicializada con 'eth_open()'
- *             previamente.
- *      'src': Dirección MAC del equipo que envió la trama Ethernet recibida.
- *             Este es un parámetro de salida. La dirección se copiará en la
- *             memoria indicada, que debe estar reservada previamente.
- *     'type': Valor del campo 'Tipo' de la trama Ethernet que se desea
- *             recibir.
- *             Las tramas con un valor 'type' diferente serán descartadas.
- *   'buffer': Array donde se almacenarán los datos de la trama recibida.
- *  'buf_len': Longitud del 'buffer' dónde se almacenarán los datos de la trama
- *             recibida. Si se reciben más datos de los que caben el en 'buffer'
- *             sólo se copiaran los primeros 'buf_len' bytes.
- *  'timeout': Tiempo en milisegundos que debe esperarse a recibir una trama
- *             antes de retornar. Un número negativo indicará que debe
- *             esperarse indefinidamente, mientras que con un '0' la función
- *             retornará inmediatamente, se haya recibido o no una trama.
+ * PARAMETERS:
+ *    'iface': Handle of the Ethernet interface a packet is to be received
+ *             from.
+ *             The interface must have been initialised with 'eth_open()'
+ *             beforehand.
+ *      'src': MAC address of the host that sent the received Ethernet frame.
+ *             This is an output parameter. The address is copied into the
+ *             given memory, which must have been reserved beforehand.
+ *     'type': Value of the 'Type' field of the Ethernet frame to receive.
+ *             Frames with a different 'type' value are discarded.
+ *   'buffer': Array where the data of the received frame will be stored.
+ *  'buf_len': Length of the 'buffer' where the data of the received frame will
+ *             be stored. If more data is received than fits in 'buffer', only
+ *             the first 'buf_len' bytes are copied.
+ *  'timeout': Time in milliseconds to wait for a frame before returning. A
+ *             negative number means waiting indefinitely, while with a '0' the
+ *             function returns immediately, whether a frame was received or
+ *             not.
  *
- * VALOR DEVUELTO:
- *   La longitud en bytes de los datos de la trama recibida (que puede
- *   ser mayor que 'buf_len'), o '0' si no se ha recibido ninguna
- *   trama porque ha expirado el temporizador.
+ * RETURN VALUE:
+ *   The length in bytes of the data of the received frame (which may be
+ *   greater than 'buf_len'), or '0' if no frame was received because the timer
+ *   expired.
  *
- * ERRORES:
- *   La función devuelve '-1' si se ha producido algún error.
+ * ERRORS:
+ *   The function returns '-1' if an error occurred.
  */
 int eth_recv
 (eth_iface_t* iface, mac_addr_t src, uint16_t type, unsigned char buffer[],
@@ -168,31 +162,30 @@ int eth_recv
 /* int eth_poll
  * ( eth_iface_t * ifaces[], int ifnum, long int timeout );
  *
- * DESCRIPCIÓN:
- *   Esta función permite esperar paquetes en múltiples interfaces Ethernet
- *   simultaneamente. Cuando alguna de las interfaces indicadas reciba una
- *   trama, la función devolverá la primera interfaz que tiene una trama
- *   listo para ser recibida mediante la funcion 'eth_recv()'.
+ * DESCRIPTION:
+ *   This function waits for packets on multiple Ethernet interfaces
+ *   simultaneously. When any of the given interfaces receives a frame, the
+ *   function returns the first interface that has a frame ready to be received
+ *   with the 'eth_recv()' function.
  *
- *   Esta operación puede escuchar de los interfaces Ethernet indefinidamente
- *   o un tiempo limitado dependiento del parámetro 'timeout'.
+ *   This operation may listen on the Ethernet interfaces indefinitely or for a
+ *   limited time depending on the 'timeout' parameter.
  *
- * PARÁMETROS:
- *  'ifaces': Array con los manejadores de interfaces Ethernet por los que se
- *            quiere recibir.
- *            Todos los interfaces deben haber sido inicializados con
- *            'eth_open()' previamente.
- *   'ifnum': Número de interfaces que aparecen en el array 'ifaces'.
- * 'timeout': Tiempo en milisegundos que debe esperarse a recibir una trama
- *            antes de retornar. Un número negativo indicará que debe
- *            esperarse indefinidamente.
+ * PARAMETERS:
+ *  'ifaces': Array with the handles of the Ethernet interfaces to receive
+ *            from.
+ *            All the interfaces must have been initialised with 'eth_open()'
+ *            beforehand.
+ *   'ifnum': Number of interfaces present in the 'ifaces' array.
+ * 'timeout': Time in milliseconds to wait for a frame before returning. A
+ *            negative number means waiting indefinitely.
  *
- * VALOR DEVUELTO:
- *   El índice del primer interfaz [0, ifnum-1] que tiene una trama lista para
- *   ser recibida o '-2' si ha expirado el temporizador.
+ * RETURN VALUE:
+ *   The index of the first interface [0, ifnum-1] that has a frame ready to be
+ *   received, or '-2' if the timer expired.
  *
- * ERRORES:
- *   La función devuelve '-1' si se ha producido algún error.
+ * ERRORS:
+ *   The function returns '-1' if an error occurred.
  */
 int eth_poll
 (eth_iface_t* ifaces[], int ifnum, long int timeout);
@@ -200,67 +193,65 @@ int eth_poll
 
 /* int eth_close ( eth_iface_t * iface );
  *
- * DESCRIPCIÓN:
- *   Esta función cierra la interfaz Ethernet especificada y libera la memoria
- *   de su manejador.
+ * DESCRIPTION:
+ *   This function closes the specified Ethernet interface and releases the
+ *   memory of its handle.
  *
- * PARÁMETROS:
- *   'iface': Manejador de la interfaz Ethernet que se desea cerrar.
+ * PARAMETERS:
+ *   'iface': Handle of the Ethernet interface to close.
  *
- * VALOR DEVUELTO:
- *   Devuelve 0 si la interfaz Ethernet se ha cerrado correctamente.
+ * RETURN VALUE:
+ *   Returns 0 if the Ethernet interface was closed correctly.
  *
- * ERRORES:
- *   La función devuelve '-1' si se ha producido algún error.
+ * ERRORS:
+ *   The function returns '-1' if an error occurred.
  */
 int eth_close(eth_iface_t* iface);
 
 
 /* void mac_addr_str ( mac_addr_t addr, char str[] );
  *
- * DESCRIPCIÓN:
- *   Esta función genera una cadena de texto que representa la dirección MAC
- *   indicada.
+ * DESCRIPTION:
+ *   This function generates a string representing the given MAC address.
  *
- * PARÁMETROS:
- *   'addr': La dirección MAC que se quiere representar textualente.
- *    'str': Memoria donde se desea almacenar la cadena de texto generada.
- *           Deben reservarse al menos 'MAC_STR_LENGTH' bytes.
+ * PARAMETERS:
+ *   'addr': The MAC address to represent as text.
+ *    'str': Memory where the generated string is to be stored.
+ *           At least 'MAC_STR_LENGTH' bytes must be reserved.
  */
 void mac_addr_str(mac_addr_t addr, char str[]);
 
 /* int mac_str_addr ( char* str, mac_addr_t addr );
  *
- * DESCRIPCIÓN:
- *   Esta función analiza una cadena de texto en busca de una dirección MAC.
+ * DESCRIPTION:
+ *   This function scans a string looking for a MAC address.
  *
- * PARÁMETROS:
- *    'str': La cadena de texto que se desea procesar.
- *   'addr': Memoria donde se almacena la dirección MAC encontrada.
+ * PARAMETERS:
+ *    'str': The string to process.
+ *   'addr': Memory where the MAC address found is stored.
  *
- * VALOR DEVUELTO:
- *   Se devuelve 0 si la cadena de texto representaba una dirección MAC.
+ * RETURN VALUE:
+ *   Returns 0 if the string represented a MAC address.
  *
- * ERRORES:
- *   La función devuelve -1 si la cadena de texto no representaba una
- *   dirección MAC.
+ * ERRORS:
+ *   The function returns -1 if the string did not represent a MAC address.
  */
 int mac_str_addr(char* str, mac_addr_t addr);
 
 
 /* void print_pkt ( unsigned char * packet, int pkt_len, int hdr_len );
  *
- * DESCRIPCIÓN:
- *   Esta función permite imprimir por salida estándar los contenidos del
- *   paquete especificado. Además, los primeros 'hdr_len' bytes del mensaje se
- *   resaltarán con otro color para facilitar su visualización.
+ * DESCRIPTION:
+ *   This function prints the contents of the given packet to standard output.
+ *   In addition, the first 'hdr_len' bytes of the message are highlighted in a
+ *   different colour to make them easier to read.
  *
- * PARÁMETROS:
- *     'packet': Puntero al contenido del paquete que se quiere imprimir.
- *    'pkt_len': Longitud total en bytes del paquete a imprimir.
- *    'hdr_len': Número de bytes iniciales que se quieren resaltar,
- *               imprimiendolos en otro color. Utilice cualquier valor menor o
- *               igual a cero para no utilizar esta característica.
+ * PARAMETERS:
+ *     'packet': Pointer to the contents of the packet to print.
+ *    'pkt_len': Total length in bytes of the packet to print.
+ *    'hdr_len': Number of leading bytes to highlight by printing them in a
+ *               different colour. Use any value less than or equal to zero to
+ *               disable this feature.
  */
 void print_pkt(unsigned char* packet, int pkt_len, int hdr_len);
 

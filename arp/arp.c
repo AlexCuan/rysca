@@ -37,8 +37,8 @@ typedef struct
     arp_cache_entry_state_t state;
     ipv4_addr_t ip_addr;
     mac_addr_t mac_addr;
-    time_t timestamp; /* Momento en que se aprendio la entrada (caducidad) */
-    time_t last_used; /* Ultimo acceso (politica de reemplazo) */
+    time_t timestamp; /* When the entry was learnt (expiry) */
+    time_t last_used; /* Last access (replacement policy) */
 } arp_cache_entry_t;
 
 static arp_cache_entry_t arp_cache[ARP_CACHE_SIZE];
@@ -50,9 +50,9 @@ static arp_cache_entry_t* arp_cache_find(ipv4_addr_t ip_addr)
         if (arp_cache[i].state == ARP_ENTRY_RESOLVED &&
             memcmp(arp_cache[i].ip_addr, ip_addr, IPv4_ADDR_SIZE) == 0)
         {
-            /* La caducidad se mide desde que se aprendio la direccion, no desde
-               el ultimo uso: si no, una entrada consultada a menudo nunca expira
-               y se conserva aunque el vecino cambie de MAC. */
+            /* Expiry is measured from when the address was learnt, not from
+               the last use: otherwise a frequently queried entry never expires
+               and is kept even if the neighbour changes its MAC. */
             if (time(NULL) - arp_cache[i].timestamp > ARP_CACHE_TTL_S)
             {
                 arp_cache[i].state = ARP_ENTRY_FREE;
@@ -77,8 +77,8 @@ static void arp_cache_add(ipv4_addr_t ip_addr, mac_addr_t mac_addr)
             oldest_index = i;
             break;
         }
-        /* Sembrar con la primera entrada ocupada: si se inicializa con la hora
-           actual, una cache llena de entradas recientes no elige victima. */
+        /* Seed with the first occupied entry: if initialised with the current
+           time, a cache full of fresh entries picks no victim. */
         if (oldest_index == -1 || arp_cache[i].last_used < oldest_time)
         {
             oldest_time = arp_cache[i].last_used;
@@ -166,8 +166,8 @@ int arp_resolve(eth_iface_t* iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, m
 
             struct arp_pkt* arp_reply = (struct arp_pkt*)buffer;
 
-            /* Aceptar solo Replies Ethernet/IPv4 bien formadas dirigidas a
-               nosotros y que resuelvan la IP que estabamos preguntando. */
+            /* Only accept well formed Ethernet/IPv4 Replies addressed to us
+               that resolve the IP address we were asking about. */
             if (ntohs(arp_reply->htype) != 1 || ntohs(arp_reply->ptype) != 0x0800 ||
                 arp_reply->hlen != MAC_ADDR_SIZE || arp_reply->plen != IPv4_ADDR_SIZE)
             {
