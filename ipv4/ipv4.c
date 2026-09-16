@@ -423,7 +423,7 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
       continue;
     }
     unsigned int header_len = (ip_header->version_ihl & 0x0F) * 4;
-    if (header_len < sizeof(ipv4_header_t))
+    if ((header_len < sizeof(ipv4_header_t)) || (header_len > (unsigned int)payload_len))
     {
       fprintf(stderr, "IPv4 Recv: Invalid header length\n");
       continue;
@@ -466,7 +466,17 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
       continue;
     }
 
+    /* 'total_length' llega de la red: sin acotarlo contra los bytes que ha
+       entregado Ethernet se copian datos que nunca se recibieron, leyendo
+       fuera de 'eth_buffer' cuando la cabecera trae opciones. El relleno
+       Ethernet hace que payload_len pueda ser mayor, pero nunca menor. */
     const int ip_total_len = ntohs(ip_header->total_length);
+    if ((ip_total_len < (int)header_len) || (ip_total_len > payload_len))
+    {
+      fprintf(stderr, "IPv4 Recv: Invalid total length\n");
+      continue;
+    }
+
     const int ip_payload_len = ip_total_len - header_len;
 
     if (ip_payload_len <= 0)
