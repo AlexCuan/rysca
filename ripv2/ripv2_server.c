@@ -142,19 +142,18 @@ void send_updates(udp_layer_t* udp, ripv2_route_table_t* table, int is_triggered
         {
             return;
         }
+
+        /* RFC 2453 3.10.1: un triggered update no reprograma el envio
+           periodico, solo el periodico reinicia su propio temporizador. */
+        last_update_time = now;
+        int jitter = rng_get_rand_in_range(-RIP_JITTER_MAX, RIP_JITTER_MAX);
+        current_interval = RIP_UPDATE_INTERVAL + jitter;
+
+        printf("[RIPv2] Periodic Update (Next in %ds)...\n", current_interval);
     }
     else
     {
         printf("[RIPv2] Triggered update: Propagando cambios...\n");
-    }
-
-    last_update_time = now;
-    int jitter = rng_get_rand_in_range(-RIP_JITTER_MAX, RIP_JITTER_MAX);
-    current_interval = RIP_UPDATE_INTERVAL + jitter;
-
-    if (!is_triggered)
-    {
-        printf("[RIPv2] Periodic Update (Next in %ds)...\n", current_interval);
     }
 
     ripv2_msg_t msg;
