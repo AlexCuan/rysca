@@ -275,8 +275,11 @@ void send_initial_request(udp_layer_t* udp)
 void process_request(udp_layer_t* udp, ripv2_route_table_t* table, ripv2_msg_t* msg, int len, ipv4_addr_t src_ip,
                      uint16_t src_port)
 {
+    /* 'msg' apunta a un buffer de 1500 bytes pero solo tiene RIP_MAX_ENTRIES
+       entradas: sin acotar se leen datos fuera del mensaje y de la estructura. */
     int num_entries_req = (len - RIP_HEADER_SIZE) / RIP_ENTRY_SIZE;
     if (num_entries_req <= 0) return;
+    if (num_entries_req > RIP_MAX_ENTRIES) num_entries_req = RIP_MAX_ENTRIES;
 
     // Detectar Whole Table Request
     int request_all = 0;
