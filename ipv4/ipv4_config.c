@@ -94,9 +94,20 @@ int ipv4_config_read
       /* Parse read name/value pair */
       if (strcasecmp(name_str, "Interface") == 0)
       {
-        strcpy(ifname, value_str);
-        ifname_read = 1;
-        err = 0;
+        /* 'value_str' admite hasta 256 bytes pero 'ifname' solo reserva
+           IFACE_NAME_MAX_LENGTH. */
+        if (strlen(value_str) >= IFACE_NAME_MAX_LENGTH)
+        {
+          fprintf(stderr, "%s:%d: 'Interface' demasiado largo: '%s'\n",
+                  filename, linenum, value_str);
+          err = -1;
+        }
+        else
+        {
+          strcpy(ifname, value_str);
+          ifname_read = 1;
+          err = 0;
+        }
       }
       else if (strcasecmp(name_str, "IPv4Address") == 0)
       {
