@@ -30,6 +30,10 @@ typedef struct
     ripv2_entry_t entries[RIP_MAX_ENTRIES];
 } ripv2_msg_t;
 
+_Static_assert(sizeof(ripv2_entry_t) == RIP_ENTRY_SIZE, "entrada RIPv2 con relleno");
+_Static_assert(sizeof(ripv2_msg_t) == RIP_HEADER_SIZE + RIP_MAX_ENTRIES * RIP_ENTRY_SIZE,
+               "mensaje RIPv2 con relleno");
+
 // Forward declaration para no incluir el .h de la tabla y causar ciclos
 struct ripv2_route_table;
 
