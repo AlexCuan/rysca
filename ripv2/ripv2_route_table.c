@@ -31,6 +31,7 @@ ripv2_route_t* ripv2_route_create
     route->route_tag = 0;
     route->last_updated = time(NULL); // Inicializar timestamp actual
     route->is_garbage = 0;
+    route->is_static = 0;
   }
 
   return route;
@@ -240,6 +241,10 @@ int ripv2_route_table_read(char* filename, ripv2_route_table_t* table)
         ripv2_route_t* new_route = ripv2_route_create(subnet, mask, nh, (uint32_t)metric);
         if (new_route)
         {
+          /* Ningun Response las refresca, asi que sin esta marca los
+             temporizadores las envenenan a los 180s y las borran a los 300s. */
+          new_route->is_static = 1;
+
           if (ripv2_route_table_add(table, new_route) != -1)
           {
             count++;
