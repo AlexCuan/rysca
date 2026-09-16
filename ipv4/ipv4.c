@@ -146,6 +146,15 @@ int ipv4_send(ipv4_layer_t* layer, ipv4_addr_t dst, uint8_t protocol, unsigned c
               int corrupt)
 {
   mac_addr_t next_hop_mac;
+
+  /* No hay fragmentación: el datagrama completo debe caber en una trama. */
+  if ((payload == NULL) || (payload_len < 0) ||
+      (payload_len > (int)(ETH_MTU - sizeof(ipv4_header_t))))
+  {
+    fprintf(stderr, "ipv4_send(): longitud de payload invalida (%d)\n", payload_len);
+    return -1;
+  }
+
   int is_multicast = ((dst[0] & 0xF0) == 0xE0); // 224.0.0.0 a 239.255.255.255
   int is_broadcast = (memcmp(dst, IPv4_BCAST_ADDR, IPv4_ADDR_SIZE) == 0);
 
