@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <timerms.h>
 
 
 ipv4_addr_t IPv4_ZERO_ADDR = {0, 0, 0, 0};
@@ -391,12 +392,24 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
   unsigned char eth_buffer[ETH_MTU];
   int payload_len;
 
+  /* El temporizador cubre todo el bucle: descartar una trama no debe regalar
+     un timeout completo, o la espera se prolonga indefinidamente mientras
+     sigan llegando paquetes que no nos sirven. */
+  timerms_t timer;
+  timerms_reset(&timer, timeout);
+
   while (1)
   {
-    payload_len = eth_recv(layer->iface, src_mac, ETH_TYPE_IPV4, eth_buffer, sizeof(eth_buffer), timeout);
-    if (payload_len <= 0)
+    long int time_left = timerms_left(&timer);
+
+    payload_len = eth_recv(layer->iface, src_mac, ETH_TYPE_IPV4, eth_buffer, sizeof(eth_buffer), time_left);
+    if (payload_len < 0)
     {
       return -1; // Error
+    }
+    if (payload_len == 0)
+    {
+      return 0; // Timeout
     }
 
 
