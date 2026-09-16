@@ -121,7 +121,7 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
         printf("Received packet #%d from server.\n", packets_received);
 
         // REUTILIZACIÓN: Usamos la función compartida para meter datos en la tabla
-        ripv2_process_response(client_table, response, src_ip);
+        ripv2_process_response(client_table, response, len, src_ip);
     }
 
     if (packets_received > 0)
