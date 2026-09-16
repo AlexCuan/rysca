@@ -26,7 +26,12 @@ int ripv2_process_response(ripv2_route_table_t* table, ripv2_msg_t* msg, int msg
 
         if (ntohs(entry->family) != 2) continue;
 
+        /* RFC 2453 3.9.2: descartar metricas fuera de [1, 16]. Sumar 1 a un
+           valor arbitrario desborda el uint32 y produce metricas de 0, que
+           ganan a cualquier ruta real y nunca caducan. */
         uint32_t received_metric = ntohl(entry->metric);
+        if ((received_metric < 1) || (received_metric > 16)) continue;
+
         uint32_t new_metric = received_metric + 1;
         if (new_metric > 16) new_metric = 16;
 
