@@ -141,7 +141,13 @@ int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsi
 
     const int result = ipv4_send(layer->ipv4_layer, dest_addr, IP_PROTOCOL_UDP, packet, packet_len, 0);
     free(packet);
-    return result;
+
+    if (result < 0)
+    {
+        return -1;
+    }
+
+    return payload_len;
 }
 
 

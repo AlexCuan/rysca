@@ -238,7 +238,14 @@ int ipv4_send(ipv4_layer_t* layer, ipv4_addr_t dst, uint8_t protocol, unsigned c
 
   free(buffer);
 
-  return bytes_sent;
+  if (bytes_sent < 0)
+  {
+    return -1;
+  }
+
+  /* Devolver los bytes utiles entregados por la capa superior, no el tamaño
+     del datagrama, para que cada capa informe de su propio payload. */
+  return payload_len;
 }
 
 /*
