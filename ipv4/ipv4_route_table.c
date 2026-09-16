@@ -36,14 +36,20 @@
 ipv4_route_t* ipv4_route_create
 (ipv4_addr_t subnet, ipv4_addr_t mask, char* iface, ipv4_addr_t gw)
 {
+  if ((subnet == NULL) || (mask == NULL) || (iface == NULL) || (gw == NULL))
+  {
+    return NULL;
+  }
+
   ipv4_route_t* route = (ipv4_route_t*)malloc(sizeof(struct ipv4_route));
 
-  if ((route != NULL) &&
-    (subnet != NULL) && (mask != NULL) && (iface != NULL) && (gw != NULL))
+  if (route != NULL)
   {
     memcpy(route->subnet_addr, subnet, IPv4_ADDR_SIZE);
     memcpy(route->subnet_mask, mask, IPv4_ADDR_SIZE);
-    strncpy(route->iface, iface, IFACE_NAME_MAX_LENGTH);
+    /* strncpy no termina la cadena si 'iface' llena el buffer */
+    strncpy(route->iface, iface, IFACE_NAME_MAX_LENGTH - 1);
+    route->iface[IFACE_NAME_MAX_LENGTH - 1] = '\0';
     memcpy(route->gateway_addr, gw, IPv4_ADDR_SIZE);
   }
 
@@ -636,6 +642,16 @@ int ipv4_route_table_read(char* filename, ipv4_route_table_t* table)
         err = 0;
         read_routes++;
       }
+      else
+      {
+        fprintf(stderr, "%s:%d: Route table full, route discarded\n",
+                filename, linenum);
+        ipv4_route_free(new_route);
+      }
+    }
+    else
+    {
+      ipv4_route_free(new_route);
     }
   } /* while() */
 
