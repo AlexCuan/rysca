@@ -32,6 +32,11 @@ typedef struct ipv4_header
     ipv4_addr_t dest_addr;
 } ipv4_header_t;
 
+/* Las estructuras de esta torre se vuelcan tal cual a la red. Hoy el ABI las
+   alinea sin huecos, pero eso no esta garantizado: fallar al compilar es mejor
+   que emitir paquetes mal formados. */
+_Static_assert(sizeof(ipv4_header_t) == 20, "cabecera IPv4 con relleno");
+
 /* Dirección IPv4 a cero "0.0.0.0" */
 extern ipv4_addr_t IPv4_ZERO_ADDR;
 

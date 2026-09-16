@@ -21,6 +21,8 @@ typedef struct
     uint16_t checksum;
 } udp_header_t;
 
+_Static_assert(sizeof(udp_header_t) == 8, "cabecera UDP con relleno");
+
 udp_layer_t* udp_open(char* config_file, char* route_table, uint16_t port);
 
 int udp_close(udp_layer_t* layer);
