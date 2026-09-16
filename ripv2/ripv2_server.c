@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
                 else if (rip_msg->command == RIP_COMMAND_RESPONSE)
                 {
                     // Si process_response devuelve 1 (cambios aprendidos) -> Trigger Update
-                    int changes = ripv2_process_response(rip_table, rip_msg, src_ip);
+                    int changes = ripv2_process_response(rip_table, rip_msg, len, src_ip);
                     if (changes)
                     {
                         printf(">>> TABLA RIPv2 ACTUALIZADA (Nuevas rutas) <<<\n");

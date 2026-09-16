@@ -9,11 +9,18 @@
  * Procesa un mensaje RIP Response y actualiza la tabla de rutas.
  * Devuelve 1 si hubo cambios en la tabla, 0 si no.
  */
-int ripv2_process_response(ripv2_route_table_t* table, ripv2_msg_t* msg, ipv4_addr_t src_ip)
+int ripv2_process_response(ripv2_route_table_t* table, ripv2_msg_t* msg, int msg_len, ipv4_addr_t src_ip)
 {
     int changes = 0;
 
-    for (int i = 0; i < RIP_MAX_ENTRIES; i++)
+    /* Recorrer solo las entradas que venian en el mensaje. El buffer de
+       recepcion se reutiliza entre paquetes, asi que todo lo que hay mas alla
+       pertenece al Response anterior. */
+    int num_entries = (msg_len - RIP_HEADER_SIZE) / RIP_ENTRY_SIZE;
+    if (num_entries < 0) num_entries = 0;
+    if (num_entries > RIP_MAX_ENTRIES) num_entries = RIP_MAX_ENTRIES;
+
+    for (int i = 0; i < num_entries; i++)
     {
         ripv2_entry_t* entry = &msg->entries[i];
 
