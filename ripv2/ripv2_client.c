@@ -113,6 +113,8 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
             break;
         }
 
+        if (len < RIP_HEADER_SIZE) continue; // Cabecera incompleta
+
         ripv2_msg_t* response = (ripv2_msg_t*)buffer;
         if (response->version != 2) continue;
         if (response->command != RIP_COMMAND_RESPONSE) continue;
