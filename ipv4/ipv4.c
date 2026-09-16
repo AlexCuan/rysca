@@ -457,7 +457,7 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
     }
 
 
-    if (payload_len < sizeof(ipv4_header_t))
+    if (payload_len < (int)sizeof(ipv4_header_t))
     {
       // Packet too small to be a valid IPv4 packet
       continue;

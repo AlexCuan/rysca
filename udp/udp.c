@@ -79,7 +79,7 @@ uint16_t udp_checksum(ipv4_addr_t src, ipv4_addr_t dest, udp_header_t* udp_heade
 
     // --- UDP Header ---
     unsigned char* h = (unsigned char*)udp_header;
-    for (int i = 0; i < sizeof(udp_header_t); i += 2)
+    for (int i = 0; i < (int)sizeof(udp_header_t); i += 2)
     {
         sum += ((h[i] << 8) & 0xFF00) + (h[i + 1] & 0x00FF);
     }
@@ -174,7 +174,7 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
             free(packet);
             return 0; // Timeout
         }
-        if (received_len < sizeof(udp_header_t))
+        if (received_len < (int)sizeof(udp_header_t))
         {
             continue; // Paquete muy corto
         }

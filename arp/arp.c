@@ -159,7 +159,7 @@ int arp_resolve(eth_iface_t* iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, m
                 continue;
             }
 
-            if (len < sizeof(struct arp_pkt))
+            if (len < (int)sizeof(struct arp_pkt))
             {
                 continue;
             }
