@@ -161,7 +161,12 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
         if (received_len < 0)
         {
             free(packet);
-            return -1;
+            return -1; // Error
+        }
+        if (received_len == 0)
+        {
+            free(packet);
+            return 0; // Timeout
         }
         if (received_len < sizeof(udp_header_t))
         {

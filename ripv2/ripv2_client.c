@@ -107,9 +107,9 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
     {
         int len = udp_rcv(udp_layer, &src_port, src_ip, buffer, sizeof(buffer), RX_TIMEOUT_MS);
 
-        if (len < 0)
+        if (len <= 0)
         {
-            // Timeout -> Fin de transmisión
+            // Timeout o error -> Fin de transmisión
             break;
         }
 

@@ -46,6 +46,10 @@ int main(int argc, char* argv[])
     while (1)
     {
         int bytes_received = udp_rcv(udp_layer, &src_port, src_addr, buffer, 1500, -1);
+        if (bytes_received == 0)
+        {
+            continue; // Timeout
+        }
         if (bytes_received < 0)
         {
             perror("udp_rcv");
