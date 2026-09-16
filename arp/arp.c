@@ -64,8 +64,7 @@ static arp_cache_entry_t* arp_cache_find(ipv4_addr_t ip_addr)
 static void arp_cache_add(ipv4_addr_t ip_addr, mac_addr_t mac_addr)
 {
     int oldest_index = -1;
-    // Timestamp del momento
-    time_t oldest_time = time(NULL);
+    time_t oldest_time = 0;
 
     for (int i = 0; i < ARP_CACHE_SIZE; i++)
     {
@@ -74,7 +73,9 @@ static void arp_cache_add(ipv4_addr_t ip_addr, mac_addr_t mac_addr)
             oldest_index = i;
             break;
         }
-        if (arp_cache[i].timestamp < oldest_time)
+        /* Sembrar con la primera entrada ocupada: si se inicializa con la hora
+           actual, una cache llena de entradas recientes no elige victima. */
+        if (oldest_index == -1 || arp_cache[i].timestamp < oldest_time)
         {
             oldest_time = arp_cache[i].timestamp;
             oldest_index = i;
