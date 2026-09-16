@@ -188,8 +188,18 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
             continue;
         }
 
+        /* La longitud declarada manda: IP puede entregar bytes de relleno y una
+           cabecera que mienta descuadraria el checksum respecto al payload. */
+        const int udp_len = ntohs(header->length);
+        if ((udp_len < (int)sizeof(udp_header_t)) || (udp_len > received_len))
+        {
+            printf("[UDP DEBUG] Error: longitud UDP invalida (%d, recibidos %d)\n",
+                   udp_len, received_len);
+            continue;
+        }
+
         *src_port = ntohs(header->src_port);
-        const int payload_len = received_len - sizeof(udp_header_t);
+        const int payload_len = udp_len - (int)sizeof(udp_header_t);
 
         // --- VERIFICACIÓN DE CHECKSUM ---
         if (layer->check_checksum)
