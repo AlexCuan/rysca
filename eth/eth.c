@@ -157,6 +157,15 @@ int eth_send
         return -1;
     }
 
+    /* El payload se copia en un buffer de ETH_MTU bytes: sin esta comprobacion
+       una capa superior que no fragmente desborda la pila. */
+    if ((payload == NULL) || (payload_len < 0) || (payload_len > ETH_MTU))
+    {
+        fprintf(stderr, "eth_send(): ERROR: longitud de payload invalida (%d)\n",
+                payload_len);
+        return -1;
+    }
+
     struct eth_frame eth_frame;
     memcpy(eth_frame.dest_addr, dst, MAC_ADDR_SIZE);
     memcpy(eth_frame.src_addr, iface->mac_address, MAC_ADDR_SIZE);
