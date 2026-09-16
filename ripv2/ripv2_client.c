@@ -107,11 +107,13 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
     {
         int len = udp_rcv(udp_layer, &src_port, src_ip, buffer, sizeof(buffer), RX_TIMEOUT_MS);
 
-        if (len < 0)
+        if (len <= 0)
         {
-            // Timeout -> Fin de transmisión
+            // Timeout o error -> Fin de transmisión
             break;
         }
+
+        if (len < RIP_HEADER_SIZE) continue; // Cabecera incompleta
 
         ripv2_msg_t* response = (ripv2_msg_t*)buffer;
         if (response->version != 2) continue;
@@ -121,7 +123,7 @@ printf("Usage: ./ripv2_client <config_file> <routes_file> <server_ip> [subnet ma
         printf("Received packet #%d from server.\n", packets_received);
 
         // REUTILIZACIÓN: Usamos la función compartida para meter datos en la tabla
-        ripv2_process_response(client_table, response, src_ip);
+        ripv2_process_response(client_table, response, len, src_ip);
     }
 
     if (packets_received > 0)

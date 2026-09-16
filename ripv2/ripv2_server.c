@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
                 else if (rip_msg->command == RIP_COMMAND_RESPONSE)
                 {
                     // Si process_response devuelve 1 (cambios aprendidos) -> Trigger Update
-                    int changes = ripv2_process_response(rip_table, rip_msg, src_ip);
+                    int changes = ripv2_process_response(rip_table, rip_msg, len, src_ip);
                     if (changes)
                     {
                         printf(">>> TABLA RIPv2 ACTUALIZADA (Nuevas rutas) <<<\n");
@@ -142,19 +142,18 @@ void send_updates(udp_layer_t* udp, ripv2_route_table_t* table, int is_triggered
         {
             return;
         }
+
+        /* RFC 2453 3.10.1: un triggered update no reprograma el envio
+           periodico, solo el periodico reinicia su propio temporizador. */
+        last_update_time = now;
+        int jitter = rng_get_rand_in_range(-RIP_JITTER_MAX, RIP_JITTER_MAX);
+        current_interval = RIP_UPDATE_INTERVAL + jitter;
+
+        printf("[RIPv2] Periodic Update (Next in %ds)...\n", current_interval);
     }
     else
     {
         printf("[RIPv2] Triggered update: Propagando cambios...\n");
-    }
-
-    last_update_time = now;
-    int jitter = rng_get_rand_in_range(-RIP_JITTER_MAX, RIP_JITTER_MAX);
-    current_interval = RIP_UPDATE_INTERVAL + jitter;
-
-    if (!is_triggered)
-    {
-        printf("[RIPv2] Periodic Update (Next in %ds)...\n", current_interval);
     }
 
     ripv2_msg_t msg;
@@ -223,6 +222,7 @@ int manage_timers(ripv2_route_table_t* table)
     {
         ripv2_route_t* route = ripv2_route_table_get(table, i);
         if (route == NULL) continue;
+        if (route->is_static) continue;
         double age = difftime(now, route->last_updated);
 
         if (!route->is_garbage && age > RIP_TIMEOUT)
@@ -274,8 +274,11 @@ void send_initial_request(udp_layer_t* udp)
 void process_request(udp_layer_t* udp, ripv2_route_table_t* table, ripv2_msg_t* msg, int len, ipv4_addr_t src_ip,
                      uint16_t src_port)
 {
+    /* 'msg' apunta a un buffer de 1500 bytes pero solo tiene RIP_MAX_ENTRIES
+       entradas: sin acotar se leen datos fuera del mensaje y de la estructura. */
     int num_entries_req = (len - RIP_HEADER_SIZE) / RIP_ENTRY_SIZE;
     if (num_entries_req <= 0) return;
+    if (num_entries_req > RIP_MAX_ENTRIES) num_entries_req = RIP_MAX_ENTRIES;
 
     // Detectar Whole Table Request
     int request_all = 0;

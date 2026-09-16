@@ -79,7 +79,7 @@ uint16_t udp_checksum(ipv4_addr_t src, ipv4_addr_t dest, udp_header_t* udp_heade
 
     // --- UDP Header ---
     unsigned char* h = (unsigned char*)udp_header;
-    for (int i = 0; i < sizeof(udp_header_t); i += 2)
+    for (int i = 0; i < (int)sizeof(udp_header_t); i += 2)
     {
         sum += ((h[i] << 8) & 0xFF00) + (h[i + 1] & 0x00FF);
     }
@@ -141,7 +141,13 @@ int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsi
 
     const int result = ipv4_send(layer->ipv4_layer, dest_addr, IP_PROTOCOL_UDP, packet, packet_len, 0);
     free(packet);
-    return result;
+
+    if (result < 0)
+    {
+        return -1;
+    }
+
+    return payload_len;
 }
 
 
@@ -161,9 +167,14 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
         if (received_len < 0)
         {
             free(packet);
-            return -1;
+            return -1; // Error
         }
-        if (received_len < sizeof(udp_header_t))
+        if (received_len == 0)
+        {
+            free(packet);
+            return 0; // Timeout
+        }
+        if (received_len < (int)sizeof(udp_header_t))
         {
             continue; // Paquete muy corto
         }
@@ -177,8 +188,18 @@ int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsign
             continue;
         }
 
+        /* La longitud declarada manda: IP puede entregar bytes de relleno y una
+           cabecera que mienta descuadraria el checksum respecto al payload. */
+        const int udp_len = ntohs(header->length);
+        if ((udp_len < (int)sizeof(udp_header_t)) || (udp_len > received_len))
+        {
+            printf("[UDP DEBUG] Error: longitud UDP invalida (%d, recibidos %d)\n",
+                   udp_len, received_len);
+            continue;
+        }
+
         *src_port = ntohs(header->src_port);
-        const int payload_len = received_len - sizeof(udp_header_t);
+        const int payload_len = udp_len - (int)sizeof(udp_header_t);
 
         // --- VERIFICACIÓN DE CHECKSUM ---
         if (layer->check_checksum)

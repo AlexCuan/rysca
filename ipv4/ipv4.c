@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <timerms.h>
 
 
 ipv4_addr_t IPv4_ZERO_ADDR = {0, 0, 0, 0};
@@ -116,6 +117,34 @@ uint16_t ipv4_checksum(unsigned char* data, int len)
   return (uint16_t)sum;
 }
 
+/* Indica si 'addr' es una dirección de difusión que esta capa debe tratar como
+   tal: la difusión limitada 255.255.255.255 o la difusión dirigida a nuestra
+   propia subred (parte de host todo a unos). */
+static int ipv4_is_broadcast(ipv4_layer_t* layer, ipv4_addr_t addr)
+{
+  if (memcmp(addr, IPv4_BCAST_ADDR, IPv4_ADDR_SIZE) == 0)
+  {
+    return 1;
+  }
+
+  int i;
+  for (i = 0; i < IPv4_ADDR_SIZE; i++)
+  {
+    /* Misma subred que nosotros ... */
+    if ((addr[i] & layer->netmask[i]) != (layer->addr[i] & layer->netmask[i]))
+    {
+      return 0;
+    }
+    /* ... y parte de host todo a unos. */
+    if ((addr[i] | layer->netmask[i]) != 0xFF)
+    {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
 /*
  * int ipv4_send (ipv4_layer_t * layer, ipv4_addr_t dst, uint8_t protocol, unsigned char * payload, int payload_len)
  *
@@ -145,8 +174,17 @@ int ipv4_send(ipv4_layer_t* layer, ipv4_addr_t dst, uint8_t protocol, unsigned c
               int corrupt)
 {
   mac_addr_t next_hop_mac;
+
+  /* No hay fragmentación: el datagrama completo debe caber en una trama. */
+  if ((payload == NULL) || (payload_len < 0) ||
+      (payload_len > (int)(ETH_MTU - sizeof(ipv4_header_t))))
+  {
+    fprintf(stderr, "ipv4_send(): longitud de payload invalida (%d)\n", payload_len);
+    return -1;
+  }
+
   int is_multicast = ((dst[0] & 0xF0) == 0xE0); // 224.0.0.0 a 239.255.255.255
-  int is_broadcast = (memcmp(dst, IPv4_BCAST_ADDR, IPv4_ADDR_SIZE) == 0);
+  int is_broadcast = ipv4_is_broadcast(layer, dst);
 
   // Lógica para determinar la MAC destino
   if (is_broadcast)
@@ -228,7 +266,14 @@ int ipv4_send(ipv4_layer_t* layer, ipv4_addr_t dst, uint8_t protocol, unsigned c
 
   free(buffer);
 
-  return bytes_sent;
+  if (bytes_sent < 0)
+  {
+    return -1;
+  }
+
+  /* Devolver los bytes utiles entregados por la capa superior, no el tamaño
+     del datagrama, para que cada capa informe de su propio payload. */
+  return payload_len;
 }
 
 /*
@@ -391,16 +436,28 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
   unsigned char eth_buffer[ETH_MTU];
   int payload_len;
 
+  /* El temporizador cubre todo el bucle: descartar una trama no debe regalar
+     un timeout completo, o la espera se prolonga indefinidamente mientras
+     sigan llegando paquetes que no nos sirven. */
+  timerms_t timer;
+  timerms_reset(&timer, timeout);
+
   while (1)
   {
-    payload_len = eth_recv(layer->iface, src_mac, ETH_TYPE_IPV4, eth_buffer, sizeof(eth_buffer), timeout);
-    if (payload_len <= 0)
+    long int time_left = timerms_left(&timer);
+
+    payload_len = eth_recv(layer->iface, src_mac, ETH_TYPE_IPV4, eth_buffer, sizeof(eth_buffer), time_left);
+    if (payload_len < 0)
     {
       return -1; // Error
     }
+    if (payload_len == 0)
+    {
+      return 0; // Timeout
+    }
 
 
-    if (payload_len < sizeof(ipv4_header_t))
+    if (payload_len < (int)sizeof(ipv4_header_t))
     {
       // Packet too small to be a valid IPv4 packet
       continue;
@@ -423,7 +480,7 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
       continue;
     }
     unsigned int header_len = (ip_header->version_ihl & 0x0F) * 4;
-    if (header_len < sizeof(ipv4_header_t))
+    if ((header_len < sizeof(ipv4_header_t)) || (header_len > (unsigned int)payload_len))
     {
       fprintf(stderr, "IPv4 Recv: Invalid header length\n");
       continue;
@@ -451,21 +508,32 @@ int ipv4_recv(ipv4_layer_t* layer, uint8_t protocol,
     // 3. Check destination address
     int is_for_me = (memcmp(ip_header->dest_addr, layer->addr, IPv4_ADDR_SIZE) == 0);
     int is_multicast = ((ip_header->dest_addr[0] & 0xF0) == 0xE0);
-    int is_broadcast = (ip_header->dest_addr[3] == 255); // Simplificación broadcast
+    int is_broadcast = ipv4_is_broadcast(layer, ip_header->dest_addr);
 
 
+#ifdef NET_DEBUG
     printf("[IPv4 DEBUG] Paquete recibido para %d.%d.%d.%d (Mio:%d, Multi:%d)\n",
            ip_header->dest_addr[0], ip_header->dest_addr[1],
            ip_header->dest_addr[2], ip_header->dest_addr[3],
            is_for_me, is_multicast);
+#endif
 
     if (!is_for_me && !is_multicast && !is_broadcast)
     {
-      printf("[IPv4 DEBUG] ... Descartado por IP destino incorrecta.\n");
       continue;
     }
 
+    /* 'total_length' llega de la red: sin acotarlo contra los bytes que ha
+       entregado Ethernet se copian datos que nunca se recibieron, leyendo
+       fuera de 'eth_buffer' cuando la cabecera trae opciones. El relleno
+       Ethernet hace que payload_len pueda ser mayor, pero nunca menor. */
     const int ip_total_len = ntohs(ip_header->total_length);
+    if ((ip_total_len < (int)header_len) || (ip_total_len > payload_len))
+    {
+      fprintf(stderr, "IPv4 Recv: Invalid total length\n");
+      continue;
+    }
+
     const int ip_payload_len = ip_total_len - header_len;
 
     if (ip_payload_len <= 0)

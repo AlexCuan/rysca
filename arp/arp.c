@@ -37,7 +37,8 @@ typedef struct
     arp_cache_entry_state_t state;
     ipv4_addr_t ip_addr;
     mac_addr_t mac_addr;
-    time_t timestamp;
+    time_t timestamp; /* Momento en que se aprendio la entrada (caducidad) */
+    time_t last_used; /* Ultimo acceso (politica de reemplazo) */
 } arp_cache_entry_t;
 
 static arp_cache_entry_t arp_cache[ARP_CACHE_SIZE];
@@ -49,12 +50,15 @@ static arp_cache_entry_t* arp_cache_find(ipv4_addr_t ip_addr)
         if (arp_cache[i].state == ARP_ENTRY_RESOLVED &&
             memcmp(arp_cache[i].ip_addr, ip_addr, IPv4_ADDR_SIZE) == 0)
         {
+            /* La caducidad se mide desde que se aprendio la direccion, no desde
+               el ultimo uso: si no, una entrada consultada a menudo nunca expira
+               y se conserva aunque el vecino cambie de MAC. */
             if (time(NULL) - arp_cache[i].timestamp > ARP_CACHE_TTL_S)
             {
                 arp_cache[i].state = ARP_ENTRY_FREE;
                 return NULL;
             }
-            arp_cache[i].timestamp = time(NULL);
+            arp_cache[i].last_used = time(NULL);
             return &arp_cache[i];
         }
     }
@@ -64,8 +68,7 @@ static arp_cache_entry_t* arp_cache_find(ipv4_addr_t ip_addr)
 static void arp_cache_add(ipv4_addr_t ip_addr, mac_addr_t mac_addr)
 {
     int oldest_index = -1;
-    // Timestamp del momento
-    time_t oldest_time = time(NULL);
+    time_t oldest_time = 0;
 
     for (int i = 0; i < ARP_CACHE_SIZE; i++)
     {
@@ -74,9 +77,11 @@ static void arp_cache_add(ipv4_addr_t ip_addr, mac_addr_t mac_addr)
             oldest_index = i;
             break;
         }
-        if (arp_cache[i].timestamp < oldest_time)
+        /* Sembrar con la primera entrada ocupada: si se inicializa con la hora
+           actual, una cache llena de entradas recientes no elige victima. */
+        if (oldest_index == -1 || arp_cache[i].last_used < oldest_time)
         {
-            oldest_time = arp_cache[i].timestamp;
+            oldest_time = arp_cache[i].last_used;
             oldest_index = i;
         }
     }
@@ -87,6 +92,7 @@ static void arp_cache_add(ipv4_addr_t ip_addr, mac_addr_t mac_addr)
         memcpy(arp_cache[oldest_index].ip_addr, ip_addr, IPv4_ADDR_SIZE);
         memcpy(arp_cache[oldest_index].mac_addr, mac_addr, MAC_ADDR_SIZE);
         arp_cache[oldest_index].timestamp = time(NULL);
+        arp_cache[oldest_index].last_used = arp_cache[oldest_index].timestamp;
     }
 }
 
@@ -153,12 +159,25 @@ int arp_resolve(eth_iface_t* iface, ipv4_addr_t src_ip, ipv4_addr_t target_ip, m
                 continue;
             }
 
-            if (len < sizeof(struct arp_pkt))
+            if (len < (int)sizeof(struct arp_pkt))
             {
                 continue;
             }
 
             struct arp_pkt* arp_reply = (struct arp_pkt*)buffer;
+
+            /* Aceptar solo Replies Ethernet/IPv4 bien formadas dirigidas a
+               nosotros y que resuelvan la IP que estabamos preguntando. */
+            if (ntohs(arp_reply->htype) != 1 || ntohs(arp_reply->ptype) != 0x0800 ||
+                arp_reply->hlen != MAC_ADDR_SIZE || arp_reply->plen != IPv4_ADDR_SIZE)
+            {
+                continue;
+            }
+            if (memcmp(arp_reply->tpa, src_ip, IPv4_ADDR_SIZE) != 0)
+            {
+                continue;
+            }
+
             if (ntohs(arp_reply->oper) == 2 && (memcmp(arp_reply->spa, target_ip, IPv4_ADDR_SIZE) == 0))
             {
                 memcpy(mac, arp_reply->sha, MAC_ADDR_SIZE);

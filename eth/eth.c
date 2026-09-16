@@ -80,6 +80,7 @@ eth_iface_t* eth_open(char* ifname)
     {
         fprintf(stderr, "eth_open(): ERROR en rawiface_open(): %s\n",
                 rawnet_strerror());
+        free(eth_iface);
         return NULL;
     }
     eth_iface->raw_iface = raw_iface;
@@ -156,6 +157,15 @@ int eth_send
         return -1;
     }
 
+    /* El payload se copia en un buffer de ETH_MTU bytes: sin esta comprobacion
+       una capa superior que no fragmente desborda la pila. */
+    if ((payload == NULL) || (payload_len < 0) || (payload_len > ETH_MTU))
+    {
+        fprintf(stderr, "eth_send(): ERROR: longitud de payload invalida (%d)\n",
+                payload_len);
+        return -1;
+    }
+
     struct eth_frame eth_frame;
     memcpy(eth_frame.dest_addr, dst, MAC_ADDR_SIZE);
     memcpy(eth_frame.src_addr, iface->mac_address, MAC_ADDR_SIZE);
@@ -177,7 +187,9 @@ int eth_send
         // Actualizar la longitud final que vamos a enviar
         final_payload_len = ETH_MIN_PAYLOAD;
 
+#ifdef NET_DEBUG
         printf("[ETH] Padding applied: Payload %d -> %d bytes\n", payload_len, final_payload_len);
+#endif
     }
     /* --- FIN LÓGICA DE PADDING --- */
 
@@ -241,6 +253,7 @@ int eth_recv
         eth_frame_ptr = (struct eth_frame*)eth_buffer;
 
 
+#ifdef NET_DEBUG
         if (ntohs(eth_frame_ptr->type) == 0x0800)
         {
             printf("[ETH DEBUG] Trama IP recibida. Dest MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
@@ -248,6 +261,7 @@ int eth_recv
                    eth_frame_ptr->dest_addr[2], eth_frame_ptr->dest_addr[3],
                    eth_frame_ptr->dest_addr[4], eth_frame_ptr->dest_addr[5]);
         }
+#endif
 
         // Comprobaciones
         is_my_mac = (memcmp(eth_frame_ptr->dest_addr, iface->mac_address, MAC_ADDR_SIZE) == 0);

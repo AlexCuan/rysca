@@ -38,6 +38,11 @@ int main(int argc, char* argv[])
     {
         int len = ipv4_recv(layer, PROTOCOL, buffer, sender, NULL, sizeof(buffer), -1);
 
+        if (len == 0)
+        {
+            continue; // Timeout: seguir escuchando
+        }
+
         if (len > 0)
         {
             ipv4_addr_str(sender, sender_str);

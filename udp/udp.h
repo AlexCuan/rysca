@@ -21,6 +21,8 @@ typedef struct
     uint16_t checksum;
 } udp_header_t;
 
+_Static_assert(sizeof(udp_header_t) == 8, "cabecera UDP con relleno");
+
 udp_layer_t* udp_open(char* config_file, char* route_table, uint16_t port);
 
 int udp_close(udp_layer_t* layer);
@@ -28,6 +30,8 @@ int udp_close(udp_layer_t* layer);
 int udp_send(udp_layer_t* layer, ipv4_addr_t dest_addr, uint16_t dest_port, unsigned char* payload, int payload_len,
              int corrupt);
 
+/* Devuelve el numero de bytes de payload recibidos, 0 si expiro el temporizador
+   o -1 si se produjo un error. */
 int udp_rcv(udp_layer_t* layer, uint16_t* src_port, ipv4_addr_t src_addr, unsigned char* buffer, int buffer_len,
             long int timeout);
 
