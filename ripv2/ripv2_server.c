@@ -223,6 +223,7 @@ int manage_timers(ripv2_route_table_t* table)
     {
         ripv2_route_t* route = ripv2_route_table_get(table, i);
         if (route == NULL) continue;
+        if (route->is_static) continue;
         double age = difftime(now, route->last_updated);
 
         if (!route->is_garbage && age > RIP_TIMEOUT)

@@ -13,6 +13,7 @@ typedef struct ripv2_route
   uint16_t route_tag; // Etiqueta de ruta (RFC 2453)
   time_t last_updated; // Para controlar el timeout (180s)
   int is_garbage; // Flag para garbage collection
+  int is_static; // Ruta leida de fichero: no la caducan los temporizadores
 } ripv2_route_t;
 
 
