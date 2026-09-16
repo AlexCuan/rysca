@@ -688,6 +688,7 @@ int ipv4_route_table_read(char* filename, ipv4_route_table_t* table)
 int ipv4_route_table_output(ipv4_route_table_t* table, FILE* out)
 {
   int err;
+  int num_routes = 0;
 
   int i;
   for (i = 0; i < IPv4_ROUTE_TABLE_SIZE; i++)
@@ -695,15 +696,18 @@ int ipv4_route_table_output(ipv4_route_table_t* table, FILE* out)
     ipv4_route_t* route_i = ipv4_route_table_get(table, i);
     if (route_i != NULL)
     {
-      err = ipv4_route_output(route_i, i, out);
+      /* La cabecera depende de si ya se ha escrito alguna ruta, no del indice:
+         si la posicion 0 esta vacia no debe perderse. */
+      err = ipv4_route_output(route_i, num_routes, out);
       if (err == -1)
       {
         return -1;
       }
+      num_routes++;
     }
   }
 
-  return 0;
+  return num_routes;
 }
 
 
